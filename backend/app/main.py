@@ -1,15 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.core.config import settings
-from app.api.routers import quotes, governance, klinbot
+from app.core.errors import register_exception_handlers
+from app.api.v1 import catalogs, quotes, klinbot
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    version="2.0.0",
+    title=settings.app_name,
     description=(
-        "Sistema Dinamico de Cotizacion, Auditoria Operativa e Inteligencia de Costos "
-        "Unitarios (APU) segun Tipologia de Infraestructura - Expo Clean Ecuador 2026."
+        "Klintec API v2.0 - Motor parametrico determinista para cotizacion, "
+        "auditoria operativa e inteligencia de costos unitarios (APU) segun "
+        "tipologia de infraestructura."
     ),
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
@@ -20,20 +25,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(quotes.router, prefix=settings.API_V1_STR)
-app.include_router(governance.router, prefix=settings.API_V1_STR)
-app.include_router(klinbot.router, prefix=settings.API_V1_STR)
+register_exception_handlers(app)
+
+app.include_router(catalogs.router, prefix=settings.api_v1_prefix)
+app.include_router(catalogs.parameters_router, prefix=settings.api_v1_prefix)
+app.include_router(quotes.router, prefix=settings.api_v1_prefix)
+app.include_router(klinbot.router, prefix=settings.api_v1_prefix)
 
 
-@app.get("/api/v1/health", tags=["Health"])
-async def health_check() -> dict:
+@app.get("/health", tags=["health"])
+def health_check():
+    return {"status": "ok", "service": settings.app_name, "version": "2.0.0"}
+
+
+@app.get("/", tags=["health"])
+def root():
     return {
-        "status": "ok",
-        "service": settings.PROJECT_NAME,
-        "ai_provider": settings.AI_PROVIDER,
-        "normativa": {
-            "sbu_2026_usd": settings.SBU_2026_USD,
-            "iess_patronal_pct": settings.IESS_PATRONAL_PCT,
-            "factor_reemplazo": settings.FACTOR_REEMPLAZO_AUSENTISMO,
-        },
+        "service": settings.app_name,
+        "version": "2.0.0",
+        "docs": "/docs",
+        "api": settings.api_v1_prefix,
     }

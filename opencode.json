@@ -7,6 +7,14 @@
         "url": "https://mcp.miro.com/",
         "disabled": false,
         "autoApprove": []
+      },
+      "github-official": {
+        "type": "local",
+        "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+        "environment": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "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"
+        },
+        "enabled": true
       }
     }
   }

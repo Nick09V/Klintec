@@ -1,0 +1,125 @@
+name: klintec
+
+services:
+  # =========================================================================
+  # 1. BASE DE DATOS RELACIONAL + VECTORIAL RAG (PostgreSQL 16.6 + pgvector)
+  # =========================================================================
+  klintec-db:
+    image: pgvector/pgvector:pg16
+    container_name: klintec-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-klintec}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-klintec2026}
+      POSTGRES_DB: ${POSTGRES_DB:-klintec_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - klintec_pgdata:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-klintec} -d ${POSTGRES_DB:-klintec_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # =========================================================================
+  # 2. CACHE PARAMETRICA L1 (<2ms) Y BROKER DE TAREAS (Redis 7.2 Alpine)
+  # =========================================================================
+  klintec-redis:
+    image: redis:7.2-alpine
+    container_name: klintec-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - klintec_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # =========================================================================
+  # 3. ALMACENAMIENTO S3 LOCAL PARA PDFs SELLADOS Y FOTOS (MinIO)
+  # =========================================================================
+  klintec-minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    container_name: klintec-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-klintecadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-klintec2026secret}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - klintec_miniodata:/data
+
+  # Inicializador automatico del bucket "klintec-proposals" en MinIO
+  klintec-minio-init:
+    image: minio/mc:latest
+    container_name: klintec-minio-init
+    depends_on:
+      - klintec-minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      /usr/bin/mc alias set local http://klintec-minio:9000 $${MINIO_ROOT_USER:-klintecadmin} $${MINIO_ROOT_PASSWORD:-klintec2026secret};
+      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET:-klintec-proposals};
+      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET:-klintec-proposals};
+      exit 0;
+      "
+
+  # =========================================================================
+  # 4. BACKEND API, MOTOR DETERMINISTA, KLINBOT RAG Y WEASYPRINT PDF (FastAPI)
+  # =========================================================================
+  klintec-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: klintec-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-klintec}:${POSTGRES_PASSWORD:-klintec2026}@klintec-db:5432/${POSTGRES_DB:-klintec_db}
+      REDIS_URL: redis://klintec-redis:6379/0
+      MINIO_ENDPOINT: http://klintec-minio:9000
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      klintec-db:
+        condition: service_healthy
+      klintec-redis:
+        condition: service_healthy
+
+  # =========================================================================
+  # 5. FRONTEND WEB SPA (Next.js 14.2 + Tailwind + Recharts + Zustand)
+  # =========================================================================
+  klintec-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: klintec-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - klintec-backend
+
+volumes:
+  klintec_pgdata:
+  klintec_redisdata:
+  klintec_miniodata:

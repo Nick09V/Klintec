@@ -74,6 +74,7 @@
 | `Frecuencia diaria_i` | `superficies[].frecuencia_diaria` | Usuario |
 | `Rendimiento ISSA_i` (m²/h) | `CatalogoSuperficie.rendimiento_m2_h` | Catálogo |
 | Días de operación al mes | `periodo.dias_operacion_mes` | Usuario |
+| Días y horas laborables, horas de fin de semana y horas suplementarias | `horario_usuario.*` | Usuario; segundo escenario de MOD |
 | Horas efectivas por turno (7,5) | `laborales.horas_efectivas_por_turno` | Parámetro |
 | SBU 2026 | `laborales.sbu` | Parámetro |
 | Bonificación de especialidad | `bonificacion_especialidad` | Usuario |
@@ -227,7 +228,11 @@ Se muestran **en solo lectura**. Solo un administrador puede modificarlos desde 
   "laborales": {
     "sbu": "482.00",
     "horas_efectivas_por_turno": 7.5,
+    "horas_mes_jornada_completa": 173.33,
+    "divisor_hora_suplementaria": 240,
     "recargo_nocturno_pct": 25,
+    "recargo_hora_suplementaria_pct": 50,
+    "recargo_hora_fin_semana_pct": 100,
     "iess_patronal_pct": 12.15,
     "fondo_reserva_pct": 8.33,
     "decimo_tercero_pct": 8.33,
@@ -269,6 +274,13 @@ Ejecuta los cinco motores (MOD, CIQ, CMAQ, EPP/consumibles, consolidación). **N
     "tipo_infraestructura": "oficina"
   },
   "periodo": { "dias_operacion_mes": 26 },
+  "horario_usuario": {
+    "dias_laborables_mes": 22,
+    "horas_por_dia_laborable": 8,
+    "dias_fin_semana_mes": 0,
+    "horas_por_dia_fin_semana": 0,
+    "horas_extra_mes": 0
+  },
   "turno": {
     "tipo": "diurno",
     "proporcion_horas_nocturnas_pct": 0
@@ -317,6 +329,11 @@ Ejecuta los cinco motores (MOD, CIQ, CMAQ, EPP/consumibles, consolidación). **N
 | `proyecto.cliente` | string | No | Máx. 150 |
 | `proyecto.tipo_infraestructura` | enum | Sí | `hospital`, `oficina`, `centro_comercial`, `institucion_educativa`, `industria`, `otro` |
 | `periodo.dias_operacion_mes` | integer | Sí | 1–31 |
+| `horario_usuario.dias_laborables_mes` | integer | No | 0–31; días de servicio de lunes a viernes |
+| `horario_usuario.horas_por_dia_laborable` | number | No | 0–24 horas |
+| `horario_usuario.dias_fin_semana_mes` | integer | No | 0–31; junto con días laborables no supera 31 |
+| `horario_usuario.horas_por_dia_fin_semana` | number | No | 0–24 horas |
+| `horario_usuario.horas_extra_mes` | number | No | 0–52 horas suplementarias diurnas por operario |
 | `turno.tipo` | enum | Sí | `diurno`, `nocturno`, `mixto` |
 | `turno.proporcion_horas_nocturnas_pct` | number | Condicional | Obligatorio si `mixto`; 100 si `nocturno`; 0 si `diurno` |
 | `bonificacion_especialidad` | Monto | No | Por operario/mes. Defecto `"0.00"` |
@@ -440,7 +457,8 @@ Ejecuta los cinco motores (MOD, CIQ, CMAQ, EPP/consumibles, consolidación). **N
 | `mod.horas_requeridas_dia` | Horas de trabajo diarias | `Σ (Área_i / Rendimiento_i × Frecuencia_i)` |
 | `mod.operarios_base` | Dotación base | `⌈ Horas/día ÷ 7,5 ⌉` |
 | `mod.costo_mensual_por_operario` | Desglose de costo por persona | Sueldo base + cargas y beneficios |
-| `mod.total` | Costo de mano de obra | `N_op × Costo por operario × 1,18` |
+| `mod.total` | Costo de mano de obra del escenario calculado | `N_op × Costo por operario × 1,18` |
+| `mod.escenario_usuario` | Escenario alternativo basado en `horario_usuario` | Horas previstas determinan capacidad y operarios; sueldo y cargas se prorratean hasta 40 h/semana y se suman recargos |
 | `ciq.lineas[].litros_solucion` | Litros de líquido listo | `Área × Frec. mensual / Rendimiento` |
 | `ciq.lineas[].litros_concentrado` | Litros de producto puro | `L_solución × fracción × (1 + merma)` |
 | `ciq.total` | Químicos + consumibles + kits EPP | Suma de subtotales |
@@ -448,6 +466,7 @@ Ejecuta los cinco motores (MOD, CIQ, CMAQ, EPP/consumibles, consolidación). **N
 | `cmaq.total` | Costo de maquinaria | `Σ (Costo/h × Horas de uso)` |
 | `consolidacion.costo_operativo_directo` | **Piso inviolable** | `MOD + CIQ + CMAQ` |
 | `consolidacion.subtotal_oferta` | Precio antes de impuestos | `Costo directo × (1 + %Admin + %Imprev. + %Margen)` |
+| `consolidacion.subtotal_oferta_usuario` | Oferta usando el escenario de horario del usuario | Mismos porcentajes comerciales sobre el costo directo del escenario usuario |
 
 ---
 

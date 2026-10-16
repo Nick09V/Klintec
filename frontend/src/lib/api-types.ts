@@ -51,7 +51,11 @@ export interface CurrentParameters {
   laborales: {
     sbu: string;
     horas_efectivas_por_turno: number;
+    horas_mes_jornada_completa: number;
+    divisor_hora_suplementaria: number;
     recargo_nocturno_pct: number;
+    recargo_hora_suplementaria_pct: number;
+    recargo_hora_fin_semana_pct: number;
     iess_patronal_pct: number;
     fondo_reserva_pct: number;
     decimo_tercero_pct: number;
@@ -75,6 +79,13 @@ export interface QuoteCalculationRequest {
     tipo_infraestructura: InfrastructureType;
   };
   periodo: { dias_operacion_mes: number };
+  horario_usuario: {
+    dias_laborables_mes: number;
+    horas_por_dia_laborable: number;
+    dias_fin_semana_mes: number;
+    horas_por_dia_fin_semana: number;
+    horas_extra_mes: number;
+  };
   turno: {
     tipo: ShiftType;
     proporcion_horas_nocturnas_pct: number;
@@ -120,6 +131,17 @@ export interface QuoteCalculationResponse {
     costo_mensual_por_operario: MoneyBreakdown;
     factor_reemplazo_ausentismo: number;
     total: string;
+    escenario_usuario: {
+      horas_laborables_mes_por_operario: number;
+      horas_fin_semana_mes_por_operario: number;
+      horas_extra_mes_por_operario: number;
+      horas_disponibles_mes_por_operario: number;
+      recargo_fin_semana_por_operario: string;
+      recargo_horas_extra_por_operario: string;
+      operarios_requeridos: number;
+      costo_mensual_por_operario: MoneyBreakdown;
+      total: string;
+    };
   };
   ciq: {
     lineas: Array<{
@@ -158,6 +180,11 @@ export interface QuoteCalculationResponse {
     factor_total: number;
     subtotal_oferta: string;
     piso_inviolable_respetado: boolean;
+    costo_operativo_directo_usuario: string;
+    gastos_administrativos_usuario: string;
+    imprevistos_riesgo_usuario: string;
+    margen_neto_usuario: string;
+    subtotal_oferta_usuario: string;
   };
   partidas: Array<{
     id: string;

@@ -35,6 +35,11 @@ interface QuoteStoreState {
   clientName: string;
   infrastructureType: InfrastructureType;
   operatingDays: number;
+  workdaysPerMonth: number;
+  hoursPerWorkday: number;
+  weekendDaysPerMonth: number;
+  hoursPerWeekendDay: number;
+  overtimeHoursPerMonth: number;
   shiftType: "diurno" | "nocturno" | "mixto";
   nightHoursPct: number;
   specialtyBonus: string;
@@ -57,6 +62,11 @@ interface QuoteStoreState {
   setClientName: (value: string) => void;
   setInfrastructureType: (value: InfrastructureType) => void;
   setOperatingDays: (value: number) => void;
+  setWorkdaysPerMonth: (value: number) => void;
+  setHoursPerWorkday: (value: number) => void;
+  setWeekendDaysPerMonth: (value: number) => void;
+  setHoursPerWeekendDay: (value: number) => void;
+  setOvertimeHoursPerMonth: (value: number) => void;
   setShiftType: (value: "diurno" | "nocturno" | "mixto") => void;
   setNightHoursPct: (value: number) => void;
   setSpecialtyBonus: (value: string) => void;
@@ -65,6 +75,8 @@ interface QuoteStoreState {
   setMarginPct: (value: number) => void;
   setCatalogs: (catalogs: QuoteStoreState["catalogs"]) => void;
   setSurfaces: (surfaces: SurfaceEntry[]) => void;
+  addSurface: () => void;
+  removeSurface: (id: string) => void;
   updateSurface: (id: string, patch: Partial<SurfaceEntry>) => void;
   setSelectedMachinery: (items: QuoteStoreState["selectedMachinery"]) => void;
   setSelectedConsumables: (items: QuoteStoreState["selectedConsumables"]) => void;
@@ -81,6 +93,11 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   clientName: "",
   infrastructureType: "oficina",
   operatingDays: 26,
+  workdaysPerMonth: 22,
+  hoursPerWorkday: 8,
+  weekendDaysPerMonth: 0,
+  hoursPerWeekendDay: 0,
+  overtimeHoursPerMonth: 0,
   shiftType: "diurno",
   nightHoursPct: 0,
   specialtyBonus: "0.00",
@@ -97,6 +114,11 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   setClientName: (clientName) => set({ clientName }),
   setInfrastructureType: (infrastructureType) => set({ infrastructureType }),
   setOperatingDays: (operatingDays) => set({ operatingDays: Math.max(1, Math.min(31, operatingDays)) }),
+  setWorkdaysPerMonth: (workdaysPerMonth) => set({ workdaysPerMonth: Math.max(0, Math.min(31, workdaysPerMonth)) }),
+  setHoursPerWorkday: (hoursPerWorkday) => set({ hoursPerWorkday: Math.max(0, Math.min(24, hoursPerWorkday)) }),
+  setWeekendDaysPerMonth: (weekendDaysPerMonth) => set({ weekendDaysPerMonth: Math.max(0, Math.min(31, weekendDaysPerMonth)) }),
+  setHoursPerWeekendDay: (hoursPerWeekendDay) => set({ hoursPerWeekendDay: Math.max(0, Math.min(24, hoursPerWeekendDay)) }),
+  setOvertimeHoursPerMonth: (overtimeHoursPerMonth) => set({ overtimeHoursPerMonth: Math.max(0, Math.min(52, overtimeHoursPerMonth)) }),
   setShiftType: (shiftType) =>
     set({ shiftType, nightHoursPct: shiftType === "nocturno" ? 100 : shiftType === "diurno" ? 0 : get().nightHoursPct }),
   setNightHoursPct: (nightHoursPct) => set({ nightHoursPct: Math.max(0, Math.min(100, nightHoursPct)) }),
@@ -106,6 +128,20 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   setMarginPct: (marginPct) => set({ marginPct }),
   setCatalogs: (catalogs) => set({ catalogs }),
   setSurfaces: (surfaces) => set({ surfaces }),
+  addSurface: () => set((state) => {
+    const catalogSurface = state.catalogs.surfaces[0];
+    if (!catalogSurface) return state;
+    return { surfaces: [...state.surfaces, {
+      id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `surface-${Date.now()}-${state.surfaces.length}`,
+      catalogId: catalogSurface.id,
+      name: catalogSurface.nombre,
+      area: 200,
+      frequency: 1,
+      color: "bg-secondary",
+      chemicalId: state.catalogs.chemicals[0]?.id || "",
+    }] };
+  }),
+  removeSurface: (id) => set((state) => ({ surfaces: state.surfaces.filter((surface) => surface.id !== id) })),
   updateSurface: (id, patch) =>
     set((state) => ({
       surfaces: state.surfaces.map((surface) => (surface.id === id ? { ...surface, ...patch } : surface)),

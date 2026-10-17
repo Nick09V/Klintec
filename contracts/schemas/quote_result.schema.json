@@ -1,0 +1,25 @@
+{
+  "horas": { "trabajo": 847.8, "pagadas": 904.3, "presencia": null },
+  "personal": { "fte": 5.63, "operarios": 6 },
+  "mod": 4086.78,
+  "ciq": 780.44,
+  "cmaq": 156.23,
+  "costo_directo": 5023.44,
+  "equilibrio": 5750.84,
+  "precio": 6535.04,
+  "iva": 980.26,
+  "total": 7515.3,
+  "semaforo": "verde",
+  "lineas_apu": [
+    {
+      "rubro": "MOD",
+      "detalle": "6 operarios",
+      "valor": 4086.78,
+      "fuente": "Normativa 2026"
+    }
+  ],
+  "alertas": [
+    { "codigo": "HORAS_PRESENCIA_BAJAS", "nivel": "aviso", "mensaje": "…" }
+  ],
+  "params_version": "v1"
+}

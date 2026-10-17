@@ -1,0 +1,48 @@
+{
+  "contrato": {
+    "sector": "privado",
+    "tipo": "recurrente",
+    "cliente": "Clínica San Rafael",
+    "tipologia": "hospitalaria",
+    "plazo_meses": 12,
+    "fecha_inicio": "2026-11-01"
+  },
+  "zonas": [
+    {
+      "nombre": "Quirófanos",
+      "tipo_zona": "quirofano",
+      "riesgo": "critico",
+      "superficie": "vinilo",
+      "m2": 300,
+      "suciedad": "media",
+      "nivel": "estandar",
+      "obstaculos": "medio",
+      "metodo": "manual",
+      "frecuencia": "multidiaria_2",
+      "visitas_mes": 60,
+      "quimico_id": "desinf_5g"
+    }
+  ],
+  "turnos": [
+    {
+      "dias": ["L", "M", "X", "J", "V", "S", "D"],
+      "inicio": "06:00",
+      "fin": "14:00",
+      "personas": 1
+    }
+  ],
+  "opciones": {
+    "opera_feriados": false,
+    "permitir_parcial": false,
+    "personal_mas_1_anio": true,
+    "ausentismo_pct": 8,
+    "salario_base": 482
+  },
+  "economicos": {
+    "supervision_pct": 6,
+    "indirectos_pct": 8,
+    "utilidad_pct": 12,
+    "merma_pct": 3,
+    "iva_pct": 15
+  }
+}

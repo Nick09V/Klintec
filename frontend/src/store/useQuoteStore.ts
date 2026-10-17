@@ -26,6 +26,12 @@ export interface SurfaceEntry {
   chemicalId: string;
 }
 
+export interface MiscExpenseEntry {
+  id: string;
+  description: string;
+  amount: number;
+}
+
 interface QuoteStoreState {
   activeRole: ActiveRole;
   currentStep: 1 | 2 | 3 | 4;
@@ -46,9 +52,11 @@ interface QuoteStoreState {
   adminPct: number;
   riskPct: number;
   marginPct: number;
+  discountPct: number;
   surfaces: SurfaceEntry[];
   selectedMachinery: Array<{ machineryId: string; hours: number }>;
   selectedConsumables: Array<{ consumableId: string; quantity: number }>;
+  miscExpenses: MiscExpenseEntry[];
   catalogs: {
     surfaces: SurfaceCatalogItem[];
     chemicals: ChemicalCatalogItem[];
@@ -73,6 +81,7 @@ interface QuoteStoreState {
   setAdminPct: (value: number) => void;
   setRiskPct: (value: number) => void;
   setMarginPct: (value: number) => void;
+  setDiscountPct: (value: number) => void;
   setCatalogs: (catalogs: QuoteStoreState["catalogs"]) => void;
   setSurfaces: (surfaces: SurfaceEntry[]) => void;
   addSurface: () => void;
@@ -80,6 +89,7 @@ interface QuoteStoreState {
   updateSurface: (id: string, patch: Partial<SurfaceEntry>) => void;
   setSelectedMachinery: (items: QuoteStoreState["selectedMachinery"]) => void;
   setSelectedConsumables: (items: QuoteStoreState["selectedConsumables"]) => void;
+  setMiscExpenses: (items: MiscExpenseEntry[]) => void;
   setGovernanceStatus: (status: QuoteGovernanceStatus) => void;
   totalArea: () => number;
 }
@@ -104,9 +114,11 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   adminPct: 10,
   riskPct: 5,
   marginPct: 15,
+  discountPct: 0,
   surfaces: [],
   selectedMachinery: [],
   selectedConsumables: [],
+  miscExpenses: [],
   catalogs: { surfaces: [], chemicals: [], machinery: [], consumables: [], parameters: null },
   setActiveRole: (activeRole) => set({ activeRole }),
   setCurrentStep: (currentStep) => set({ currentStep }),
@@ -126,6 +138,7 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   setAdminPct: (adminPct) => set({ adminPct }),
   setRiskPct: (riskPct) => set({ riskPct }),
   setMarginPct: (marginPct) => set({ marginPct }),
+  setDiscountPct: (discountPct) => set({ discountPct: Math.max(0, Math.min(15, discountPct)) }),
   setCatalogs: (catalogs) => set({ catalogs }),
   setSurfaces: (surfaces) => set({ surfaces }),
   addSurface: () => set((state) => {
@@ -148,6 +161,7 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
     })),
   setSelectedMachinery: (selectedMachinery) => set({ selectedMachinery }),
   setSelectedConsumables: (selectedConsumables) => set({ selectedConsumables }),
+  setMiscExpenses: (miscExpenses) => set({ miscExpenses }),
   setGovernanceStatus: (governanceStatus) => set({ governanceStatus }),
   totalArea: () => get().surfaces.reduce((sum, surface) => sum + surface.area, 0),
 }));

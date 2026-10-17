@@ -75,6 +75,7 @@
 | `Rendimiento ISSA_i` (m²/h) | `CatalogoSuperficie.rendimiento_m2_h` | Catálogo |
 | Días de operación al mes | `periodo.dias_operacion_mes` | Usuario |
 | Días y horas laborables, horas de fin de semana y horas suplementarias | `horario_usuario.*` | Usuario; segundo escenario de MOD |
+| Gastos mensuales adicionales | `gastos_varios[].descripcion` / `gastos_varios[].monto_mensual` | Usuario |
 | Horas efectivas por turno (7,5) | `laborales.horas_efectivas_por_turno` | Parámetro |
 | SBU 2026 | `laborales.sbu` | Parámetro |
 | Bonificación de especialidad | `bonificacion_especialidad` | Usuario |
@@ -262,7 +263,7 @@ Se muestran **en solo lectura**. Solo un administrador puede modificarlos desde 
 
 #### `POST /cotizaciones/calcular`
 
-Ejecuta los cinco motores (MOD, CIQ, CMAQ, EPP/consumibles, consolidación). **No persiste nada.**
+Calcula MOD, CIQ, CMAQ, consumibles/EPP, gastos varios y consolidación. **No persiste nada.**
 
 **Request**
 
@@ -312,10 +313,14 @@ Ejecuta los cinco motores (MOD, CIQ, CMAQ, EPP/consumibles, consolidación). **N
       "cantidad_mensual": 40
     }
   ],
+  "gastos_varios": [
+    { "descripcion": "Transporte de insumos", "monto_mensual": 45.00 }
+  ],
   "comercial": {
     "gastos_administrativos_pct": 10,
     "imprevistos_riesgo_pct": 5,
-    "margen_neto_pct": 15
+    "margen_neto_pct": 15,
+    "descuento_pct": 0
   },
   "version_parametros": "2026.1"
 }
@@ -334,6 +339,9 @@ Ejecuta los cinco motores (MOD, CIQ, CMAQ, EPP/consumibles, consolidación). **N
 | `horario_usuario.dias_fin_semana_mes` | integer | No | 0–31; junto con días laborables no supera 31 |
 | `horario_usuario.horas_por_dia_fin_semana` | number | No | 0–24 horas |
 | `horario_usuario.horas_extra_mes` | number | No | 0–52 horas suplementarias diurnas por operario |
+| `gastos_varios[].descripcion` | string | No | Detalle requerido, máximo 200 caracteres |
+| `gastos_varios[].monto_mensual` | number | No | Monto mensual en USD, mayor o igual a 0 |
+| `comercial.descuento_pct` | number | No | Porcentaje de descuento sobre el subtotal de oferta, de 0 a 15; defecto 0 |
 | `turno.tipo` | enum | Sí | `diurno`, `nocturno`, `mixto` |
 | `turno.proporcion_horas_nocturnas_pct` | number | Condicional | Obligatorio si `mixto`; 100 si `nocturno`; 0 si `diurno` |
 | `bonificacion_especialidad` | Monto | No | Por operario/mes. Defecto `"0.00"` |
@@ -466,7 +474,11 @@ Ejecuta los cinco motores (MOD, CIQ, CMAQ, EPP/consumibles, consolidación). **N
 | `cmaq.total` | Costo de maquinaria | `Σ (Costo/h × Horas de uso)` |
 | `consolidacion.costo_operativo_directo` | **Piso inviolable** | `MOD + CIQ + CMAQ` |
 | `consolidacion.subtotal_oferta` | Precio antes de impuestos | `Costo directo × (1 + %Admin + %Imprev. + %Margen)` |
+| `consolidacion.descuento_comercial` | Descuento aplicado al subtotal de oferta | `subtotal_oferta × descuento_pct / 100` |
+| `consolidacion.precio_final` | Oferta después del descuento | `subtotal_oferta - descuento_comercial` |
 | `consolidacion.subtotal_oferta_usuario` | Oferta usando el escenario de horario del usuario | Mismos porcentajes comerciales sobre el costo directo del escenario usuario |
+| `consolidacion.precio_final_usuario` | Oferta del escenario de horario del usuario después del descuento | `subtotal_oferta_usuario - descuento_comercial_usuario` |
+| `gastos_varios.lineas[]` | Detalle de conceptos adicionales | Se agregan al costo operativo directo y aparecen como partidas `OTR-*` del APU |
 
 ---
 

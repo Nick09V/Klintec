@@ -68,6 +68,7 @@ export interface CurrentParameters {
     gastos_administrativos_pct: number;
     imprevistos_riesgo_pct: number;
     margen_neto_pct: number;
+    descuento_pct: number;
     limites: Record<string, { min: number; max: number }>;
   };
 }
@@ -100,10 +101,12 @@ export interface QuoteCalculationRequest {
   }>;
   maquinaria: Array<{ maquinaria_id: string; horas_uso_mensual: number }>;
   consumibles: Array<{ consumible_id: string; cantidad_mensual: number }>;
+  gastos_varios: Array<{ descripcion: string; monto_mensual: number }>;
   comercial: {
     gastos_administrativos_pct: number;
     imprevistos_riesgo_pct: number;
     margen_neto_pct: number;
+    descuento_pct: number;
   };
   version_parametros?: string;
 }
@@ -172,6 +175,10 @@ export interface QuoteCalculationResponse {
     }>;
     total: string;
   };
+  gastos_varios: {
+    lineas: Array<{ descripcion: string; monto_mensual: string; costo: string }>;
+    total: string;
+  };
   consolidacion: {
     costo_operativo_directo: string;
     gastos_administrativos: string;
@@ -179,12 +186,17 @@ export interface QuoteCalculationResponse {
     margen_neto: string;
     factor_total: number;
     subtotal_oferta: string;
+    descuento_pct: number;
+    descuento_comercial: string;
+    precio_final: string;
     piso_inviolable_respetado: boolean;
     costo_operativo_directo_usuario: string;
     gastos_administrativos_usuario: string;
     imprevistos_riesgo_usuario: string;
     margen_neto_usuario: string;
     subtotal_oferta_usuario: string;
+    descuento_comercial_usuario: string;
+    precio_final_usuario: string;
   };
   partidas: Array<{
     id: string;

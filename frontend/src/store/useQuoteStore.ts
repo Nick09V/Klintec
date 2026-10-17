@@ -24,6 +24,15 @@ export interface SurfaceEntry {
   frequency: number;
   color: string;
   chemicalId: string;
+  zoneType: string;
+  risk: QuoteInput["zonas"][number]["riesgo"];
+  surface: QuoteInput["zonas"][number]["superficie"];
+  dirt: QuoteInput["zonas"][number]["suciedad"];
+  level: QuoteInput["zonas"][number]["nivel"];
+  obstacles: QuoteInput["zonas"][number]["obstaculos"];
+  method: QuoteInput["zonas"][number]["metodo"];
+  frequencyCode: string;
+  machineId: string | null;
 }
 
 export interface MiscExpenseEntry {
@@ -40,6 +49,9 @@ export interface QuoteInput {
     tipologia: "hospitalaria" | "educativa" | "corporativa" | "industrial" | "otra";
     plazo_meses: number;
     fecha_inicio: string;
+    urgente?: boolean;
+    codigo_proceso?: string;
+    presupuesto_referencial?: number;
   };
   zonas: Array<{
     nombre: string;
@@ -54,6 +66,7 @@ export interface QuoteInput {
     frecuencia: string;
     visitas_mes: number;
     quimico_id: string;
+    maquina_id?: string | null;
   }>;
   turnos: Array<{ dias: string[]; inicio: string; fin: string; personas: number }>;
   opciones: {
@@ -62,6 +75,8 @@ export interface QuoteInput {
     personal_mas_1_anio: boolean;
     ausentismo_pct: number;
     salario_base: number;
+    horas_disponibles?: number;
+    personas_maximas?: number;
   };
   economicos: {
     supervision_pct: number;
@@ -70,11 +85,14 @@ export interface QuoteInput {
     merma_pct: number;
     iva_pct: number;
   };
+  maquinaria: Array<{ maquinaria_id: string; horas_uso_mensual: number }>;
+  consumibles: Array<{ consumible_id: string; cantidad_mensual: number }>;
+  gastos_varios: Array<{ descripcion: string; monto_mensual: number }>;
 }
 
 export interface QuoteStoreState {
   activeRole: ActiveRole;
-  currentStep: 1 | 2 | 3 | 4;
+  currentStep: 0 | 1 | 2 | 3 | 4;
   governanceStatus: QuoteGovernanceStatus;
   supervisorNotes: string;
   projectName: string;
@@ -93,6 +111,19 @@ export interface QuoteStoreState {
   riskPct: number;
   marginPct: number;
   discountPct: number;
+  contract: QuoteInput["contrato"];
+  shiftDays: string[];
+  shiftStart: string;
+  shiftEnd: string;
+  shiftPeople: number;
+  operatesHolidays: boolean;
+  allowPartial: boolean;
+  experiencedStaff: boolean;
+  absenteeismPct: number;
+  availableHours: number;
+  maximumPeople: number;
+  wastePct: number;
+  vatPct: number;
   surfaces: SurfaceEntry[];
   selectedMachinery: Array<{ machineryId: string; hours: number }>;
   selectedConsumables: Array<{ consumableId: string; quantity: number }>;
@@ -105,7 +136,7 @@ export interface QuoteStoreState {
     parameters: CurrentParameters | null;
   };
   setActiveRole: (role: ActiveRole) => void;
-  setCurrentStep: (step: 1 | 2 | 3 | 4) => void;
+  setCurrentStep: (step: 0 | 1 | 2 | 3 | 4) => void;
   setProjectName: (value: string) => void;
   setClientName: (value: string) => void;
   setInfrastructureType: (value: InfrastructureType) => void;
@@ -122,6 +153,10 @@ export interface QuoteStoreState {
   setRiskPct: (value: number) => void;
   setMarginPct: (value: number) => void;
   setDiscountPct: (value: number) => void;
+  updateContract: (patch: Partial<QuoteInput["contrato"]>) => void;
+  setShift: (patch: Partial<QuoteInput["turnos"][number]>) => void;
+  setGoldOptions: (patch: Partial<QuoteInput["opciones"]>) => void;
+  setGoldEconomics: (patch: Partial<QuoteInput["economicos"]>) => void;
   setCatalogs: (catalogs: QuoteStoreState["catalogs"]) => void;
   setSurfaces: (surfaces: SurfaceEntry[]) => void;
   addSurface: () => void;
@@ -160,7 +195,7 @@ function tipologiaFromInfrastructure(infrastructureType: InfrastructureType): Qu
 
 export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   activeRole: "OPERATIVO",
-  currentStep: 1,
+  currentStep: 0,
   governanceStatus: "DRAFT",
   supervisorNotes: "",
   projectName: "Oficinas Torre Norte",
@@ -179,6 +214,29 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   riskPct: 5,
   marginPct: 15,
   discountPct: 0,
+  contract: {
+    sector: "privado",
+    tipo: "recurrente",
+    cliente: "",
+    tipologia: "corporativa",
+    plazo_meses: 12,
+    fecha_inicio: "2026-11-01",
+    urgente: false,
+    codigo_proceso: "",
+    presupuesto_referencial: undefined,
+  },
+  shiftDays: ["L", "M", "X", "J", "V", "S", "D"],
+  shiftStart: "06:00",
+  shiftEnd: "14:00",
+  shiftPeople: 1,
+  operatesHolidays: false,
+  allowPartial: false,
+  experiencedStaff: true,
+  absenteeismPct: 8,
+  availableHours: 8,
+  maximumPeople: 1,
+  wastePct: 3,
+  vatPct: 15,
   surfaces: [],
   selectedMachinery: [],
   selectedConsumables: [],
@@ -203,6 +261,28 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   setRiskPct: (riskPct) => set({ riskPct }),
   setMarginPct: (marginPct) => set({ marginPct }),
   setDiscountPct: (discountPct) => set({ discountPct: Math.max(0, Math.min(15, discountPct)) }),
+  updateContract: (patch) => set((state) => ({ contract: { ...state.contract, ...patch } })),
+  setShift: (patch) => set((state) => ({
+    shiftDays: patch.dias ?? state.shiftDays,
+    shiftStart: patch.inicio ?? state.shiftStart,
+    shiftEnd: patch.fin ?? state.shiftEnd,
+    shiftPeople: patch.personas ?? state.shiftPeople,
+  })),
+  setGoldOptions: (patch) => set((state) => ({
+    operatesHolidays: patch.opera_feriados ?? state.operatesHolidays,
+    allowPartial: patch.permitir_parcial ?? state.allowPartial,
+    experiencedStaff: patch.personal_mas_1_anio ?? state.experiencedStaff,
+    absenteeismPct: patch.ausentismo_pct ?? state.absenteeismPct,
+    availableHours: patch.horas_disponibles ?? state.availableHours,
+    maximumPeople: patch.personas_maximas ?? state.maximumPeople,
+  })),
+  setGoldEconomics: (patch) => set((state) => ({
+    adminPct: patch.supervision_pct ?? state.adminPct,
+    riskPct: patch.indirectos_pct ?? state.riskPct,
+    marginPct: patch.utilidad_pct ?? state.marginPct,
+    wastePct: patch.merma_pct ?? state.wastePct,
+    vatPct: patch.iva_pct ?? state.vatPct,
+  })),
   setCatalogs: (catalogs) => set({ catalogs }),
   setSurfaces: (surfaces) => set({ surfaces }),
   addSurface: () => set((state) => {
@@ -216,6 +296,15 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
       frequency: 1,
       color: "bg-secondary",
       chemicalId: state.catalogs.chemicals[0]?.id || "",
+      zoneType: "general",
+      risk: "general",
+      surface: "vinilo",
+      dirt: "media",
+      level: "estandar",
+      obstacles: "bajo",
+      method: "manual",
+      frequencyCode: "diaria_1",
+      machineId: null,
     }] };
   }),
   removeSurface: (id) => set((state) => ({ surfaces: state.surfaces.filter((surface) => surface.id !== id) })),
@@ -230,47 +319,63 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   totalArea: () => get().surfaces.reduce((sum, surface) => sum + surface.area, 0),
   toGoldStandardInput: () => {
     const state = get();
-    const zonas = state.surfaces.length === 0
-      ? [goldStandardZone]
-      : state.surfaces.map((surface) => ({
-          ...goldStandardZone,
-          nombre: surface.name,
-          m2: surface.area,
-          frecuencia: surface.frequency === 2 ? "multidiaria_2" : "diaria_1",
-          visitas_mes: surface.frequency * state.operatingDays,
-          quimico_id: surface.chemicalId || goldStandardZone.quimico_id,
-        }));
-
     return {
       contrato: {
-        sector: "privado",
-        tipo: "recurrente",
-        cliente: state.clientName.trim() || "Clínica San Rafael",
-        tipologia: tipologiaFromInfrastructure(state.infrastructureType),
-        plazo_meses: 12,
-        fecha_inicio: "2026-11-01",
+        ...state.contract,
+        cliente: state.contract.cliente.trim() || state.clientName.trim() || "Clínica San Rafael",
+        tipologia: state.contract.tipologia || tipologiaFromInfrastructure(state.infrastructureType),
       },
-      zonas,
-      turnos: [{
-        dias: ["L", "M", "X", "J", "V", "S", "D"],
-        inicio: "06:00",
-        fin: "14:00",
-        personas: 1,
-      }],
+      zonas: state.surfaces.length === 0 ? [goldStandardZone] : state.surfaces.map((surface) => ({
+        ...goldStandardZone,
+        nombre: surface.name,
+        tipo_zona: surface.zoneType,
+        riesgo: surface.risk,
+        superficie: surface.surface,
+        m2: surface.area,
+        suciedad: surface.dirt,
+        nivel: surface.level,
+        obstaculos: surface.obstacles,
+        metodo: surface.method,
+        frecuencia: surface.frequencyCode,
+        visitas_mes: surface.frequency * state.operatingDays,
+        quimico_id: surface.chemicalId || goldStandardZone.quimico_id,
+        maquina_id: surface.machineId,
+      })),
+      turnos: [{ dias: state.shiftDays, inicio: state.shiftStart, fin: state.shiftEnd, personas: state.shiftPeople }],
       opciones: {
-        opera_feriados: false,
-        permitir_parcial: false,
-        personal_mas_1_anio: true,
-        ausentismo_pct: 8,
+        opera_feriados: state.operatesHolidays,
+        permitir_parcial: state.allowPartial,
+        personal_mas_1_anio: state.experiencedStaff,
+        ausentismo_pct: state.absenteeismPct,
         salario_base: Number(state.catalogs.parameters?.laborales.sbu || 482),
+        horas_disponibles: state.availableHours,
+        personas_maximas: state.maximumPeople,
       },
       economicos: {
         supervision_pct: state.adminPct,
         indirectos_pct: state.riskPct,
         utilidad_pct: state.marginPct,
-        merma_pct: Number(state.catalogs.parameters?.quimicos.merma_pct || 3),
-        iva_pct: 15,
+        merma_pct: state.wastePct,
+        iva_pct: state.vatPct,
       },
+      maquinaria: state.selectedMachinery
+        .filter((item) => item.machineryId && item.hours > 0)
+        .map((item) => ({
+          maquinaria_id: item.machineryId,
+          horas_uso_mensual: item.hours,
+        })),
+      consumibles: state.selectedConsumables
+        .filter((item) => item.consumableId && item.quantity > 0)
+        .map((item) => ({
+          consumible_id: item.consumableId,
+          cantidad_mensual: item.quantity,
+        })),
+      gastos_varios: state.miscExpenses
+        .filter((item) => item.description.trim() && item.amount > 0)
+        .map((item) => ({
+          descripcion: item.description.trim(),
+          monto_mensual: item.amount,
+        })),
     };
   },
 }));

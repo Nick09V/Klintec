@@ -31,6 +31,62 @@ function errorMessage(error: unknown): string {
   return "No fue posible conectar con el motor de cotización.";
 }
 
+function ContractSetup({ onContinue }: { onContinue: () => void }) {
+  const state = useQuoteStore();
+  const contract = state.contract;
+
+  return <div className="step-enter">
+    <SectionTitle
+      eyebrow="Paso 00 / Datos del contrato"
+      title="Define el contrato antes de parametrizar"
+      description="Estos datos alimentan directamente el bloque contrato del objeto quote_input."
+    />
+    <section className="card p-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="text-body-sm">Sector
+          <select className="input-numeric mt-1 w-full" value={contract.sector} onChange={(e) => state.updateContract({ sector: e.target.value as QuoteInput["contrato"]["sector"] })}>
+            <option value="privado">Privado</option><option value="publico">Público</option>
+          </select>
+        </label>
+        <label className="text-body-sm">Tipo de contrato
+          <select className="input-numeric mt-1 w-full" value={contract.tipo} onChange={(e) => state.updateContract({ tipo: e.target.value as QuoteInput["contrato"]["tipo"] })}>
+            <option value="recurrente">Recurrente</option><option value="unico">Único</option>
+          </select>
+        </label>
+        <label className="text-body-sm">Cliente
+          <input className="input-numeric mt-1 w-full" required value={contract.cliente} onChange={(e) => { state.updateContract({ cliente: e.target.value }); state.setClientName(e.target.value); }} />
+        </label>
+        <label className="text-body-sm">Tipología
+          <select className="input-numeric mt-1 w-full" value={contract.tipologia} onChange={(e) => state.updateContract({ tipologia: e.target.value as QuoteInput["contrato"]["tipologia"] })}>
+            <option value="hospitalaria">Hospitalaria</option><option value="educativa">Educativa</option><option value="corporativa">Corporativa</option><option value="industrial">Industrial</option><option value="otra">Otra</option>
+          </select>
+        </label>
+        <label className="text-body-sm">Plazo (meses)
+          <select className="input-numeric mt-1 w-full" value={contract.plazo_meses} onChange={(e) => state.updateContract({ plazo_meses: Number(e.target.value) })}>
+            {[1, 3, 6, 12, 24].map((months) => <option key={months} value={months}>{months}</option>)}
+          </select>
+        </label>
+        <label className="text-body-sm">Fecha de inicio
+          <input className="input-numeric mt-1 w-full" type="date" value={contract.fecha_inicio} onChange={(e) => state.updateContract({ fecha_inicio: e.target.value })} />
+        </label>
+        <label className="text-body-sm">Código de proceso
+          <input className="input-numeric mt-1 w-full" value={contract.codigo_proceso || ""} onChange={(e) => state.updateContract({ codigo_proceso: e.target.value })} />
+        </label>
+        <label className="text-body-sm">Presupuesto referencial
+          <input className="input-numeric mt-1 w-full" type="number" min="0" value={contract.presupuesto_referencial ?? ""} onChange={(e) => state.updateContract({ presupuesto_referencial: e.target.value ? Number(e.target.value) : undefined })} />
+        </label>
+        <label className="flex items-center gap-2 pt-6 text-body-sm">
+          <input type="checkbox" checked={contract.urgente || false} onChange={(e) => state.updateContract({ urgente: e.target.checked })} />
+          Contrato urgente
+        </label>
+      </div>
+      <button type="button" onClick={onContinue} disabled={!contract.cliente.trim() || !contract.fecha_inicio} className="btn-primary mt-6">
+        Continuar a P1 <Icon>arrow_forward</Icon>
+      </button>
+    </section>
+  </div>;
+}
+
 function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationResponse, payload: QuoteInput) => void }) {
   const state = useQuoteStore();
   const [loading, setLoading] = useState(false);
@@ -53,6 +109,15 @@ function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationRespon
             frequency: 1,
             color: "bg-secondary",
             chemicalId: chemicals.items[0]?.id || "",
+            zoneType: "general",
+            risk: "general",
+            surface: "vinilo",
+            dirt: "media",
+            level: "estandar",
+            obstacles: "bajo",
+            method: "manual",
+            frequencyCode: "diaria_1",
+            machineId: null,
           })));
         }
       })
@@ -102,6 +167,17 @@ function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationRespon
             <div className="mb-2 flex items-center justify-between"><span className="text-label-caps uppercase text-on-surface-variant">{surface.name}</span>{state.surfaces.length > 1 && <button type="button" onClick={() => state.removeSurface(surface.id)} className="text-body-sm text-red-700">Quitar</button>}</div>
             <div className="grid gap-2 sm:grid-cols-[1fr_100px_100px]"><select aria-label={`Tipo de piso ${surface.name}`} value={surface.catalogId} onChange={(e) => selectSurface(surface.id, e.target.value)} className="w-full rounded bg-surface p-2 text-body-sm">{state.catalogs.surfaces.map((item) => <option key={item.id} value={item.id}>{item.nombre} · {item.rendimiento_m2_h} m²/h</option>)}</select><input aria-label={`Área ${surface.name}`} type="number" min="0.01" value={surface.area} onChange={(e) => state.updateSurface(surface.id, { area: Number(e.target.value) })} className="input-numeric" /><input aria-label={`Frecuencia ${surface.name}`} type="number" min="0.01" value={surface.frequency} onChange={(e) => state.updateSurface(surface.id, { frequency: Number(e.target.value) })} className="input-numeric" /></div>
             <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center"><select aria-label={`Solución química para ${surface.name}`} value={surface.chemicalId} onChange={(e) => state.updateSurface(surface.id, { chemicalId: e.target.value })} className="w-full rounded bg-surface p-2 text-body-sm"><option value="">Sin solución química</option>{state.catalogs.chemicals.map((chemical) => <option key={chemical.id} value={chemical.id}>{chemical.nombre} · {chemical.convencion_dilucion === "partes_agua" ? `1:${chemical.factor_dilucion} (producto + agua)` : `1:${chemical.factor_dilucion} (solución total)`}</option>)}</select>{chemical ? <span className="text-body-sm text-on-surface-variant">Cubre {chemical.rendimiento_m2_por_litro} m²/L · ${chemical.precio_unitario}/{chemical.unidad_precio}</span> : <span className="text-body-sm text-on-surface-variant">Sin consumo químico para esta superficie</span>}</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="text-body-sm">Tipo de zona<input className="input-numeric mt-1 w-full" value={surface.zoneType} onChange={(e) => state.updateSurface(surface.id, { zoneType: e.target.value })} /></label>
+              <label className="text-body-sm">Riesgo<select className="input-numeric mt-1 w-full" value={surface.risk} onChange={(e) => state.updateSurface(surface.id, { risk: e.target.value as typeof surface.risk })}><option value="critico">Crítico</option><option value="semicritico">Semicrítico</option><option value="no_critico">No crítico</option><option value="alimentos">Alimentos</option><option value="general">General</option></select></label>
+              <label className="text-body-sm">Superficie<select className="input-numeric mt-1 w-full" value={surface.surface} onChange={(e) => state.updateSurface(surface.id, { surface: e.target.value as typeof surface.surface })}>{["vinilo", "ceramica", "piedra", "madera", "alfombra", "epoxico", "vidrio", "acero"].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+              <label className="text-body-sm">Suciedad<select className="input-numeric mt-1 w-full" value={surface.dirt} onChange={(e) => state.updateSurface(surface.id, { dirt: e.target.value as typeof surface.dirt })}><option value="ligera">Ligera</option><option value="media">Media</option><option value="pesada">Pesada</option></select></label>
+              <label className="text-body-sm">Nivel<select className="input-numeric mt-1 w-full" value={surface.level} onChange={(e) => state.updateSurface(surface.id, { level: e.target.value as typeof surface.level })}><option value="basico">Básico</option><option value="estandar">Estándar</option><option value="alto">Alto</option></select></label>
+              <label className="text-body-sm">Obstáculos<select className="input-numeric mt-1 w-full" value={surface.obstacles} onChange={(e) => state.updateSurface(surface.id, { obstacles: e.target.value as typeof surface.obstacles })}><option value="bajo">Bajo</option><option value="medio">Medio</option><option value="alto">Alto</option></select></label>
+              <label className="text-body-sm">Método<select className="input-numeric mt-1 w-full" value={surface.method} onChange={(e) => state.updateSurface(surface.id, { method: e.target.value as typeof surface.method })}><option value="manual">Manual</option><option value="maquina">Máquina</option></select></label>
+              <label className="text-body-sm">Frecuencia del contrato<input className="input-numeric mt-1 w-full" value={surface.frequencyCode} onChange={(e) => state.updateSurface(surface.id, { frequencyCode: e.target.value })} placeholder="ej. multidiaria_2" /></label>
+              <label className="text-body-sm">Máquina ID (opcional)<input className="input-numeric mt-1 w-full" value={surface.machineId || ""} onChange={(e) => state.updateSurface(surface.id, { machineId: e.target.value || null })} /></label>
+            </div>
           </div>; })}</div>
           <button type="button" onClick={() => state.addSurface()} disabled={state.catalogs.surfaces.length === 0} className="btn-ghost mt-3"><Icon>add</Icon>Agregar superficie</button>
           <p className="mt-2 text-body-sm text-on-surface-variant">Cada fila: tipo de piso · área m² · frecuencia diaria · solución química.</p>
@@ -124,7 +200,21 @@ function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationRespon
         </div>
         <label className="mt-4 block text-label-caps uppercase text-on-surface-variant">Turno</label><select value={state.shiftType} onChange={(e) => state.setShiftType(e.target.value as "diurno" | "nocturno" | "mixto")} className="mt-2 w-full rounded-lg bg-surface-container-low p-3"><option value="diurno">Diurno</option><option value="nocturno">Nocturno</option><option value="mixto">Mixto</option></select>
         {state.shiftType === "mixto" && <><label className="mt-4 block text-label-caps uppercase text-on-surface-variant">% horas nocturnas</label><input type="number" min="0" max="100" value={state.nightHoursPct} onChange={(e) => state.setNightHoursPct(Number(e.target.value))} className="input-numeric mt-2 w-full" /></>}
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4"><label className="text-body-sm">Admin %<input type="number" min="0" max="100" value={state.adminPct} onChange={(e) => state.setAdminPct(Number(e.target.value))} className="input-numeric mt-1 w-full" /></label><label className="text-body-sm">Riesgo %<input type="number" min="0" max="100" value={state.riskPct} onChange={(e) => state.setRiskPct(Number(e.target.value))} className="input-numeric mt-1 w-full" /></label><label className="text-body-sm">Margen %<input type="number" min="0" max="100" value={state.marginPct} onChange={(e) => state.setMarginPct(Number(e.target.value))} className="input-numeric mt-1 w-full" /></label><label className="text-body-sm text-red-800">Descuento %<input type="number" min="0" max="15" value={state.discountPct} onChange={(e) => state.setDiscountPct(Number(e.target.value))} className="input-numeric mt-1 w-full" /><span className="text-xs">Resta al precio de oferta (máx. 15%)</span></label></div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <label className="text-body-sm">Inicio del turno<input type="time" className="input-numeric mt-1 w-full" value={state.shiftStart} onChange={(e) => state.setShift({ inicio: e.target.value })} /></label>
+          <label className="text-body-sm">Fin del turno<input type="time" className="input-numeric mt-1 w-full" value={state.shiftEnd} onChange={(e) => state.setShift({ fin: e.target.value })} /></label>
+          <label className="text-body-sm">Personas<input type="number" min="1" className="input-numeric mt-1 w-full" value={state.shiftPeople} onChange={(e) => state.setShift({ personas: Number(e.target.value) })} /></label>
+          <label className="text-body-sm">Días (L,M,X,J,V,S,D)<input className="input-numeric mt-1 w-full" value={state.shiftDays.join(",")} onChange={(e) => state.setShift({ dias: e.target.value.split(",").map((day) => day.trim()).filter(Boolean) })} /></label>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <label className="flex items-center gap-2 text-body-sm"><input type="checkbox" checked={state.operatesHolidays} onChange={(e) => state.setGoldOptions({ opera_feriados: e.target.checked })} />Opera feriados</label>
+          <label className="flex items-center gap-2 text-body-sm"><input type="checkbox" checked={state.allowPartial} onChange={(e) => state.setGoldOptions({ permitir_parcial: e.target.checked })} />Permitir parcial</label>
+          <label className="flex items-center gap-2 text-body-sm"><input type="checkbox" checked={state.experiencedStaff} onChange={(e) => state.setGoldOptions({ personal_mas_1_anio: e.target.checked })} />Personal con más de 1 año</label>
+          <label className="text-body-sm">Ausentismo %<input type="number" min="0" max="100" className="input-numeric mt-1 w-full" value={state.absenteeismPct} onChange={(e) => state.setGoldOptions({ ausentismo_pct: Number(e.target.value) })} /></label>
+          <label className="text-body-sm">Horas disponibles<input type="number" min="0.01" className="input-numeric mt-1 w-full" value={state.availableHours} onChange={(e) => state.setGoldOptions({ horas_disponibles: Number(e.target.value) })} /></label>
+          <label className="text-body-sm">Personas máximas<input type="number" min="1" className="input-numeric mt-1 w-full" value={state.maximumPeople} onChange={(e) => state.setGoldOptions({ personas_maximas: Number(e.target.value) })} /></label>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4"><label className="text-body-sm">Supervisión %<input type="number" min="0" value={state.adminPct} onChange={(e) => state.setGoldEconomics({ supervision_pct: Number(e.target.value) })} className="input-numeric mt-1 w-full" /></label><label className="text-body-sm">Indirectos %<input type="number" min="0" value={state.riskPct} onChange={(e) => state.setGoldEconomics({ indirectos_pct: Number(e.target.value) })} className="input-numeric mt-1 w-full" /></label><label className="text-body-sm">Utilidad %<input type="number" min="0" max="99" value={state.marginPct} onChange={(e) => state.setGoldEconomics({ utilidad_pct: Number(e.target.value) })} className="input-numeric mt-1 w-full" /></label><label className="text-body-sm">Merma %<input type="number" min="0" value={state.wastePct} onChange={(e) => state.setGoldEconomics({ merma_pct: Number(e.target.value) })} className="input-numeric mt-1 w-full" /></label><label className="text-body-sm">IVA %<input type="number" min="0" value={state.vatPct} onChange={(e) => state.setGoldEconomics({ iva_pct: Number(e.target.value) })} className="input-numeric mt-1 w-full" /></label><label className="text-body-sm text-red-800">Descuento %<input type="number" min="0" max="15" value={state.discountPct} onChange={(e) => state.setDiscountPct(Number(e.target.value))} className="input-numeric mt-1 w-full" /><span className="text-xs">No forma parte del schema gold</span></label></div>
         {state.catalogs.parameters && <p className="mt-4 text-body-sm text-on-surface-variant">Parámetros {state.catalogs.parameters.version_parametros} · vigentes desde {state.catalogs.parameters.vigente_desde}</p>}
         <div className="mt-5 border-t border-outline-variant pt-4">
           <p className="text-label-caps uppercase text-on-surface-variant">Maquinaria</p>
@@ -271,6 +361,9 @@ export default function HomePage() {
   }
   const isSubmitted = Boolean(result && reviewQuotes.some((item) => item.result.hash_calculo === result.hash_calculo));
   const renderWizardStep = () => {
+    if (currentStep === 0) {
+      return <ContractSetup onContinue={() => setCurrentStep(1)} />;
+    }
     if (!result || currentStep === 1) {
       return <StepOne onCalculate={(calculation, payload) => { setResult(calculation); setRequestPayload(payload); }} />;
     }

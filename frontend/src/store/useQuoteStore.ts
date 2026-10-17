@@ -32,7 +32,47 @@ export interface MiscExpenseEntry {
   amount: number;
 }
 
-interface QuoteStoreState {
+export interface QuoteInput {
+  contrato: {
+    sector: "privado" | "publico";
+    tipo: "recurrente" | "unico";
+    cliente: string;
+    tipologia: "hospitalaria" | "educativa" | "corporativa" | "industrial" | "otra";
+    plazo_meses: number;
+    fecha_inicio: string;
+  };
+  zonas: Array<{
+    nombre: string;
+    tipo_zona: string;
+    riesgo: "critico" | "semicritico" | "no_critico" | "alimentos" | "general";
+    superficie: "vinilo" | "ceramica" | "piedra" | "madera" | "alfombra" | "epoxico" | "vidrio" | "acero";
+    m2: number;
+    suciedad: "ligera" | "media" | "pesada";
+    nivel: "basico" | "estandar" | "alto";
+    obstaculos: "bajo" | "medio" | "alto";
+    metodo: "manual" | "maquina";
+    frecuencia: string;
+    visitas_mes: number;
+    quimico_id: string;
+  }>;
+  turnos: Array<{ dias: string[]; inicio: string; fin: string; personas: number }>;
+  opciones: {
+    opera_feriados: boolean;
+    permitir_parcial: boolean;
+    personal_mas_1_anio: boolean;
+    ausentismo_pct: number;
+    salario_base: number;
+  };
+  economicos: {
+    supervision_pct: number;
+    indirectos_pct: number;
+    utilidad_pct: number;
+    merma_pct: number;
+    iva_pct: number;
+  };
+}
+
+export interface QuoteStoreState {
   activeRole: ActiveRole;
   currentStep: 1 | 2 | 3 | 4;
   governanceStatus: QuoteGovernanceStatus;
@@ -92,6 +132,30 @@ interface QuoteStoreState {
   setMiscExpenses: (items: MiscExpenseEntry[]) => void;
   setGovernanceStatus: (status: QuoteGovernanceStatus) => void;
   totalArea: () => number;
+  toGoldStandardInput: () => QuoteInput;
+}
+
+const goldStandardZone: QuoteInput["zonas"][number] = {
+  nombre: "Quirófanos",
+  tipo_zona: "quirofano",
+  riesgo: "critico",
+  superficie: "vinilo",
+  m2: 300,
+  suciedad: "media",
+  nivel: "estandar",
+  obstaculos: "medio",
+  metodo: "manual",
+  frecuencia: "multidiaria_2",
+  visitas_mes: 60,
+  quimico_id: "desinf_5g",
+};
+
+function tipologiaFromInfrastructure(infrastructureType: InfrastructureType): QuoteInput["contrato"]["tipologia"] {
+  if (infrastructureType === "hospital") return "hospitalaria";
+  if (infrastructureType === "institucion_educativa") return "educativa";
+  if (infrastructureType === "industria") return "industrial";
+  if (infrastructureType === "oficina" || infrastructureType === "centro_comercial") return "corporativa";
+  return "otra";
 }
 
 export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
@@ -164,4 +228,49 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   setMiscExpenses: (miscExpenses) => set({ miscExpenses }),
   setGovernanceStatus: (governanceStatus) => set({ governanceStatus }),
   totalArea: () => get().surfaces.reduce((sum, surface) => sum + surface.area, 0),
+  toGoldStandardInput: () => {
+    const state = get();
+    const zonas = state.surfaces.length === 0
+      ? [goldStandardZone]
+      : state.surfaces.map((surface) => ({
+          ...goldStandardZone,
+          nombre: surface.name,
+          m2: surface.area,
+          frecuencia: surface.frequency === 2 ? "multidiaria_2" : "diaria_1",
+          visitas_mes: surface.frequency * state.operatingDays,
+          quimico_id: surface.chemicalId || goldStandardZone.quimico_id,
+        }));
+
+    return {
+      contrato: {
+        sector: "privado",
+        tipo: "recurrente",
+        cliente: state.clientName.trim() || "Clínica San Rafael",
+        tipologia: tipologiaFromInfrastructure(state.infrastructureType),
+        plazo_meses: 12,
+        fecha_inicio: "2026-11-01",
+      },
+      zonas,
+      turnos: [{
+        dias: ["L", "M", "X", "J", "V", "S", "D"],
+        inicio: "06:00",
+        fin: "14:00",
+        personas: 1,
+      }],
+      opciones: {
+        opera_feriados: false,
+        permitir_parcial: false,
+        personal_mas_1_anio: true,
+        ausentismo_pct: 8,
+        salario_base: Number(state.catalogs.parameters?.laborales.sbu || 482),
+      },
+      economicos: {
+        supervision_pct: state.adminPct,
+        indirectos_pct: state.riskPct,
+        utilidad_pct: state.marginPct,
+        merma_pct: Number(state.catalogs.parameters?.quimicos.merma_pct || 3),
+        iva_pct: 15,
+      },
+    };
+  },
 }));

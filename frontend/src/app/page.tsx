@@ -9,7 +9,7 @@ import {
   QuoteCalculationResponse,
 } from "@/lib/api-types";
 import { cn, fmtMoney, fmtNumber, INFRASTRUCTURE_LABELS, TYPOLOGIES } from "@/lib/constants";
-import { useQuoteStore } from "@/store/useQuoteStore";
+import { useQuoteStore, type QuoteInput } from "@/store/useQuoteStore";
 import { createReviewQuote, loadReviewQuotes, ReviewQuote, saveReviewQuotes } from "@/lib/supervisor-queue";
 
 function Icon({ children }: { children: string }) {
@@ -187,11 +187,93 @@ function StepTwo({ result, onSubmitForReview, submitted }: { result: QuoteCalcul
   </div>;
 }
 
+function StepThree({ result, onEdit }: { result: QuoteCalculationResponse; onEdit: () => void }) {
+  const state = useQuoteStore();
+  const scenario = result.mod.escenario_usuario;
+
+  return <div className="step-enter">
+    <SectionTitle
+      eyebrow="Paso 03 / Simulador de margen"
+      title="Simula tu escenario operativo"
+      description="Ajusta los parámetros comerciales y vuelve al paso 1 para recalcular con el motor determinista."
+    />
+    <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+      <section className="card p-5">
+        <h2 className="font-headline text-headline-md">Parámetros editables</h2>
+        <p className="mt-2 text-body-sm text-on-surface-variant">
+          Los cambios quedan guardados en el wizard y se aplican al volver a generar la matriz APU.
+        </p>
+        <div className="mt-5 space-y-4">
+          <label className="block text-body-sm">
+            Gastos administrativos: <strong>{state.adminPct}%</strong>
+            <input type="range" min="0" max="30" step="0.5" value={state.adminPct} onChange={(e) => state.setAdminPct(Number(e.target.value))} className="mt-2 w-full" />
+          </label>
+          <label className="block text-body-sm">
+            Imprevistos / riesgo: <strong>{state.riskPct}%</strong>
+            <input type="range" min="0" max="30" step="0.5" value={state.riskPct} onChange={(e) => state.setRiskPct(Number(e.target.value))} className="mt-2 w-full" />
+          </label>
+          <label className="block text-body-sm">
+            Margen neto: <strong>{state.marginPct}%</strong>
+            <input type="range" min="0" max="50" step="0.5" value={state.marginPct} onChange={(e) => state.setMarginPct(Number(e.target.value))} className="mt-2 w-full" />
+          </label>
+          <label className="block text-body-sm">
+            Descuento: <strong>{state.discountPct}%</strong>
+            <input type="range" min="0" max="15" step="0.5" value={state.discountPct} onChange={(e) => state.setDiscountPct(Number(e.target.value))} className="mt-2 w-full" />
+          </label>
+        </div>
+        <button type="button" onClick={onEdit} className="btn-primary mt-6 w-full">
+          <Icon>refresh</Icon>Recalcular matriz APU
+        </button>
+      </section>
+      <section className="card p-5">
+        <h2 className="font-headline text-headline-md">Resultado del escenario actual</h2>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <MoneyCard label="Precio final" value={result.consolidacion.precio_final} detail={`${result.consolidacion.descuento_pct}% de descuento`} />
+          <MoneyCard label="Costo directo" value={result.consolidacion.costo_operativo_directo} detail="Antes de gastos comerciales" />
+          <MoneyCard label="Horas disponibles" value={String(scenario.horas_disponibles_mes_por_operario)} detail="Por operario / mes" />
+          <MoneyCard label="Operarios estimados" value={String(scenario.operarios_requeridos)} detail="Según tu horario" />
+        </div>
+        <div className="mt-6 rounded-lg bg-surface-container-low p-4 text-body-sm">
+          <p className="font-semibold">Para aplicar los cambios</p>
+          <p className="mt-1 text-on-surface-variant">Pulsa “Recalcular matriz APU”. El wizard te llevará al paso 1 y conservará todos los datos ingresados.</p>
+        </div>
+      </section>
+    </div>
+  </div>;
+}
+
+function StepFour({ result, input, onSubmitForReview, submitted }: {
+  result: QuoteCalculationResponse;
+  input: QuoteInput;
+  onSubmitForReview: () => void;
+  submitted: boolean;
+}) {
+  return <div className="step-enter">
+    <SectionTitle eyebrow="Paso 04 / Propuesta formal" title="Revisa y envía la cotización" description="El snapshot de entrada conserva exactamente el contrato gold standard usado para la propuesta." />
+    <div className="grid gap-6 lg:grid-cols-2">
+      <section className="card p-5">
+        <h2 className="font-headline text-headline-md">Resumen comercial</h2>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <MoneyCard label="Precio final" value={result.consolidacion.precio_final} />
+          <MoneyCard label="Piso respetado" value={result.consolidacion.piso_inviolable_respetado ? "Sí" : "No"} />
+        </div>
+        <button type="button" onClick={onSubmitForReview} disabled={submitted} className="btn-primary mt-6 w-full">
+          {submitted ? "Enviado a revisión del supervisor" : "Enviar cotización a revisión"}<Icon>send</Icon>
+        </button>
+      </section>
+      <section className="card p-5">
+        <h2 className="font-headline text-headline-md">Objeto de entrada gold standard</h2>
+        <pre className="mt-4 max-h-[480px] overflow-auto rounded-lg bg-surface-container-low p-4 text-xs">{JSON.stringify(input, null, 2)}</pre>
+      </section>
+    </div>
+  </div>;
+}
+
 export default function HomePage() {
   const [result, setResult] = useState<QuoteCalculationResponse | null>(null);
   const [requestPayload, setRequestPayload] = useState<QuoteCalculationRequest | null>(null);
   const [reviewQuotes, setReviewQuotes] = useState<ReviewQuote[]>([]);
-  const { currentStep, setCurrentStep, activeRole, setGovernanceStatus } = useQuoteStore();
+  const { currentStep, setCurrentStep, activeRole, setGovernanceStatus, toGoldStandardInput } = useQuoteStore();
   useEffect(() => {
     const savedQuotes = loadReviewQuotes();
     setReviewQuotes(savedQuotes);
@@ -207,5 +289,18 @@ export default function HomePage() {
     updateQuotes([createReviewQuote(requestPayload, result), ...reviewQuotes]);
   }
   const isSubmitted = Boolean(result && reviewQuotes.some((item) => item.result.hash_calculo === result.hash_calculo));
-  return <><TopBar /><main className="mx-auto max-w-[1440px] px-4 pb-12 pt-28 lg:px-8">{activeRole === "SUPERVISOR" ? <SupervisorDashboard quotes={reviewQuotes} onChange={updateQuotes} /> : !result || currentStep === 1 ? <StepOne onCalculate={(calculation, payload) => { setResult(calculation); setRequestPayload(payload); }} /> : <><StepTwo result={result} onSubmitForReview={submitForReview} submitted={isSubmitted} /><button onClick={() => setCurrentStep(1)} className="btn-ghost mt-6"><Icon>arrow_back</Icon>Editar datos</button></>}</main></>;
+  const renderWizardStep = () => {
+    if (!result || currentStep === 1) {
+      return <StepOne onCalculate={(calculation, payload) => { setResult(calculation); setRequestPayload(payload); }} />;
+    }
+    if (currentStep === 2) {
+      return <StepTwo result={result} onSubmitForReview={submitForReview} submitted={isSubmitted} />;
+    }
+    if (currentStep === 3) {
+      return <StepThree result={result} onEdit={() => setCurrentStep(1)} />;
+    }
+    return <StepFour result={result} input={toGoldStandardInput()} onSubmitForReview={submitForReview} submitted={isSubmitted} />;
+  };
+
+  return <><TopBar /><main className="mx-auto max-w-[1440px] px-4 pb-12 pt-28 lg:px-8">{activeRole === "SUPERVISOR" ? <SupervisorDashboard quotes={reviewQuotes} onChange={updateQuotes} /> : renderWizardStep()}</main></>;
 }

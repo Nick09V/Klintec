@@ -1,6 +1,16 @@
+from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+
+from app.services.klinbot_provider import (
+    AuditResponse,
+    VisionResponse,
+    TDRResponse,
+    run_klinbot_audit,
+    run_klinbot_chat,
+    run_klinvision_inspect,
+    run_tdr_parse,
+)
 
 router = APIRouter(prefix="/klinbot", tags=["klinbot"])
 
@@ -9,71 +19,42 @@ class AuditRequest(BaseModel):
     quote_snapshot: dict
 
 
-class AuditResponse(BaseModel):
-    recomendaciones: List[str]
-    advertencias: List[str]
-    riesgo_general: str
-    optimizaciones: List[dict] = []
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    context: Optional[dict] = None
+
+
+class ChatResponse(BaseModel):
+    response: str
+    provider: str = "klinbot-copilot"
 
 
 @router.post("/audit", response_model=AuditResponse)
-def audit_quote(req: AuditRequest):
-    # Auditoría determinista MVP basada en el snapshot enviado por el supervisor.
-    calculation = req.quote_snapshot.get("calculo", req.quote_snapshot)
-    consolidation = calculation.get("consolidacion", {}) if isinstance(calculation, dict) else {}
-    recomendaciones = [
-        "Verificar rendimientos por tipología antes de aprobar",
-        "Confirmar factor de reemplazo/ausentismo aplicado (1.18x)",
-    ]
-    advertencias = [
-        f"{item.get('codigo', 'ADVERTENCIA')}: {item.get('mensaje', 'Revisar el cálculo')}"
-        for item in calculation.get("advertencias", [])
-        if isinstance(item, dict)
-    ] if isinstance(calculation, dict) else []
-    riesgo_general = "bajo"
-    if consolidation and not consolidation.get("piso_inviolable_respetado", True):
-        advertencias.append("El precio final no respeta el piso del costo operativo directo.")
-        recomendaciones.insert(0, "Corregir precio o porcentajes comerciales antes de aprobar")
-        riesgo_general = "alto"
-    elif advertencias:
-        riesgo_general = "medio"
-    if consolidation and float(consolidation.get("descuento_pct", 0) or 0) > 0:
-        recomendaciones.append("Confirmar que el descuento aplicado fue autorizado")
-    return AuditResponse(
-        recomendaciones=recomendaciones,
-        advertencias=advertencias,
-        riesgo_general=riesgo_general,
-        optimizaciones=[{"titulo": "Revisar maquinaria asignada", "ahorro_mensual_estimado": "0.00"}],
-    )
+def audit_quote_endpoint(req: AuditRequest) -> AuditResponse:
+    """Audita el snapshot técnico-financiero de una cotización con Gemini / Fallback 2026."""
+    return run_klinbot_audit(req.quote_snapshot)
 
 
-class VisionResponse(BaseModel):
-    superficie_detectada: str
-    nivel_riesgo: str
-    insumo_sugerido: str
-    maquinaria_sugerida: Optional[str] = None
+@router.post("/chat", response_model=ChatResponse)
+def chat_copilot_endpoint(req: ChatRequest) -> ChatResponse:
+    """Chat interactivo en vivo con el Copiloto KlinBot (Gemini)."""
+    text = run_klinbot_chat(req.message, req.context)
+    return ChatResponse(response=text)
 
 
 @router.post("/vision", response_model=VisionResponse)
-async def vision_inspect(file: UploadFile = File(...), prompt: Optional[str] = Form(None)):
-    # MVP placeholder: retorna sugerencias por defecto
-    return VisionResponse(
-        superficie_detectada="Piso clínico - Alto tráfico",
-        nivel_riesgo="medio_alto",
-        insumo_sugerido="Amonio cuaternario 5ª generación",
-        maquinaria_sugerida="Fregadora compacta hospitalaria",
-    )
-
-
-class TDRResponse(BaseModel):
-    entidades: List[str] = []
-    metrajes: List[dict] = []
-    frecuencias: List[dict] = []
-    turnos: str = "diurno"
-    resumen: str = "Procesado (MVP)"
+async def vision_inspect_endpoint(
+    file: UploadFile = File(...),
+    prompt: Optional[str] = Form(None)
+) -> VisionResponse:
+    """Inspección multimodal de imágenes con KlinVision (Gemini Vision)."""
+    content = await file.read()
+    mime = file.content_type or "image/jpeg"
+    return await run_klinvision_inspect(content, mime_type=mime, prompt_extra=prompt)
 
 
 @router.post("/ingest-tdr", response_model=TDRResponse)
-async def ingest_tdr(file: UploadFile = File(...)):
-    # MVP: placeholder; integrar pypdf después
-    return TDRResponse(resumen="Documento recibido. Parser completo pendiente de integrar con pgvector")
+async def ingest_tdr_endpoint(file: UploadFile = File(...)) -> TDRResponse:
+    """Extracción estructurada de pliegos SERCOP / TDR en PDF con Gemini."""
+    content = await file.read()
+    return await run_tdr_parse(content, filename=file.filename or "tdr.pdf")

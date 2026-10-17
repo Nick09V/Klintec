@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import TopBar from "@/components/TopBar";
 import SupervisorDashboard from "@/components/SupervisorDashboard";
+import KlinBotDrawer from "@/components/KlinBotDrawer";
 import { api, ApiError } from "@/lib/api";
 import {
   QuoteCalculationResponse,
+  ConsumableCatalogItem,
 } from "@/lib/api-types";
 import { cn, fmtMoney, fmtNumber, INFRASTRUCTURE_LABELS, TYPOLOGIES } from "@/lib/constants";
 import { useQuoteStore, type QuoteInput } from "@/store/useQuoteStore";
@@ -34,6 +36,24 @@ function errorMessage(error: unknown): string {
 function ContractSetup({ onContinue }: { onContinue: () => void }) {
   const state = useQuoteStore();
   const contract = state.contract;
+  const [tdrLoading, setTdrLoading] = useState(false);
+  const [tdrMessage, setTdrMessage] = useState("");
+
+  async function handleTdrUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setTdrLoading(true);
+    setTdrMessage("Analizando pliego TDR con Gemini...");
+    try {
+      const tdr = await api.ingestTdr(file);
+      state.applyTdrData(tdr);
+      setTdrMessage(`✓ Pliego procesado con Gemini: ${tdr.resumen}. ${tdr.metrajes.length} zonas y frecuencias precargadas.`);
+    } catch {
+      setTdrMessage("No fue posible extraer datos del pliego TDR. Puedes continuar manualmente.");
+    } finally {
+      setTdrLoading(false);
+    }
+  }
 
   return <div className="step-enter">
     <SectionTitle
@@ -41,6 +61,35 @@ function ContractSetup({ onContinue }: { onContinue: () => void }) {
       title="Define el contrato antes de parametrizar"
       description="Estos datos alimentan directamente el bloque contrato del objeto quote_input."
     />
+    <div className="mb-6 rounded-xl border border-secondary/30 bg-secondary-fixed/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-headline font-semibold text-body-md flex items-center gap-2">
+            <Icon>picture_as_pdf</Icon>
+            ¿Tienes los Términos de Referencia (TDR) o Pliego SERCOP?
+          </p>
+          <p className="text-body-sm text-on-surface-variant">
+            Sube el PDF (~50 páginas) y Gemini precargará entidad, código, zonas, metrajes y turnos.
+          </p>
+        </div>
+        <label className="btn-secondary flex cursor-pointer items-center gap-2">
+          <Icon>upload_file</Icon>
+          <span>{tdrLoading ? "Procesando pliego..." : "Importar Pliego TDR (PDF)"}</span>
+          <input
+            type="file"
+            accept="application/pdf"
+            disabled={tdrLoading}
+            onChange={(e) => void handleTdrUpload(e)}
+            className="hidden"
+          />
+        </label>
+      </div>
+      {tdrMessage && (
+        <p className="mt-3 rounded-lg bg-surface p-2.5 text-body-sm font-medium text-secondary">
+          {tdrMessage}
+        </p>
+      )}
+    </div>
     <section className="card p-5">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-body-sm">Sector
@@ -128,11 +177,13 @@ function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationRespon
   async function calculate() {
     setLoading(true);
     setMessage("");
-    const payload = state.toGoldStandardInput();
+    const goldPayload = state.toGoldStandardInput();
+    const calcPayload = state.toCalculationRequest();
     try {
-      onCalculate(await api.calculateQuote(payload), payload);
+      const response = await api.calculateQuote(calcPayload);
+      onCalculate(response, goldPayload);
       state.setCurrentStep(2);
-      setMessage("Cálculo determinista actualizado.");
+      setMessage("Cálculo determinista APU actualizado correctamente.");
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -164,7 +215,33 @@ function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationRespon
         <div className="mt-6 border-t border-outline-variant pt-5">
           <div className="flex items-center justify-between"><h2 className="font-headline text-headline-md">Superficies y frecuencias</h2><span className="font-mono-metric text-secondary">{fmtNumber(state.totalArea())} m²</span></div>
           <div className="mt-3 space-y-3">{state.surfaces.map((surface) => { const chemical = state.catalogs.chemicals.find((item) => item.id === surface.chemicalId); return <div key={surface.id} className="rounded-lg bg-surface-container-low p-3">
-            <div className="mb-2 flex items-center justify-between"><span className="text-label-caps uppercase text-on-surface-variant">{surface.name}</span>{state.surfaces.length > 1 && <button type="button" onClick={() => state.removeSurface(surface.id)} className="text-body-sm text-red-700">Quitar</button>}</div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-label-caps uppercase text-on-surface-variant">{surface.name}</span>
+              <div className="flex items-center gap-2">
+                <label className="flex cursor-pointer items-center gap-1 rounded bg-surface px-2.5 py-1 text-xs font-semibold text-secondary hover:bg-secondary hover:text-white transition-colors border border-outline-variant">
+                  <Icon>photo_camera</Icon>
+                  <span>Foto (KlinVision)</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setMessage("Analizando foto con KlinVision (Gemini)...");
+                      try {
+                        const vision = await api.inspectVision(file);
+                        state.applyVisionInspection(surface.id, vision);
+                        setMessage(`KlinVision detectó: ${vision.superficie_detectada} (${vision.nivel_riesgo}). Insumo: ${vision.insumo_sugerido}`);
+                      } catch {
+                        setMessage("No fue posible inspeccionar la foto con KlinVision.");
+                      }
+                    }}
+                  />
+                </label>
+                {state.surfaces.length > 1 && <button type="button" onClick={() => state.removeSurface(surface.id)} className="text-body-sm text-red-700">Quitar</button>}
+              </div>
+            </div>
             <div className="grid gap-2 sm:grid-cols-[1fr_100px_100px]"><select aria-label={`Tipo de piso ${surface.name}`} value={surface.catalogId} onChange={(e) => selectSurface(surface.id, e.target.value)} className="w-full rounded bg-surface p-2 text-body-sm">{state.catalogs.surfaces.map((item) => <option key={item.id} value={item.id}>{item.nombre} · {item.rendimiento_m2_h} m²/h</option>)}</select><input aria-label={`Área ${surface.name}`} type="number" min="0.01" value={surface.area} onChange={(e) => state.updateSurface(surface.id, { area: Number(e.target.value) })} className="input-numeric" /><input aria-label={`Frecuencia ${surface.name}`} type="number" min="0.01" value={surface.frequency} onChange={(e) => state.updateSurface(surface.id, { frequency: Number(e.target.value) })} className="input-numeric" /></div>
             <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center"><select aria-label={`Solución química para ${surface.name}`} value={surface.chemicalId} onChange={(e) => state.updateSurface(surface.id, { chemicalId: e.target.value })} className="w-full rounded bg-surface p-2 text-body-sm"><option value="">Sin solución química</option>{state.catalogs.chemicals.map((chemical) => <option key={chemical.id} value={chemical.id}>{chemical.nombre} · {chemical.convencion_dilucion === "partes_agua" ? `1:${chemical.factor_dilucion} (producto + agua)` : `1:${chemical.factor_dilucion} (solución total)`}</option>)}</select>{chemical ? <span className="text-body-sm text-on-surface-variant">Cubre {chemical.rendimiento_m2_por_litro} m²/L · ${chemical.precio_unitario}/{chemical.unidad_precio}</span> : <span className="text-body-sm text-on-surface-variant">Sin consumo químico para esta superficie</span>}</div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -225,10 +302,10 @@ function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationRespon
           <button type="button" disabled={state.selectedMachinery.length >= state.catalogs.machinery.length} onClick={() => { const next = state.catalogs.machinery.find((item) => !state.selectedMachinery.some((selected) => selected.machineryId === item.id)); if (next) state.setSelectedMachinery([...state.selectedMachinery, { machineryId: next.id, hours: 0 }]); }} className="btn-ghost mt-2"><Icon>add</Icon>Agregar máquina</button>
           <p className="mt-5 text-label-caps uppercase text-on-surface-variant">Consumibles</p>
           {state.selectedConsumables.map((entry, index) => <div key={`${entry.consumableId}-${index}`} className="mt-2 rounded-lg bg-surface-container-low p-3">
-            <div className="flex gap-2"><select aria-label={`Consumible ${index + 1}`} value={entry.consumableId} onChange={(e) => state.setSelectedConsumables(state.selectedConsumables.map((item, i) => i === index ? { ...item, consumableId: e.target.value } : item))} className="w-full rounded-lg bg-surface p-3 text-body-sm"><option value="">Selecciona consumible</option>{state.catalogs.consumables.map((item) => <option key={item.id} value={item.id}>{item.nombre} ({item.unidad})</option>)}</select><button type="button" onClick={() => state.setSelectedConsumables(state.selectedConsumables.filter((_, i) => i !== index))} aria-label="Quitar consumible" className="px-2 text-red-700">×</button></div>
+            <div className="flex gap-2"><select aria-label={`Consumible ${index + 1}`} value={entry.consumableId} onChange={(e) => state.setSelectedConsumables(state.selectedConsumables.map((item, i) => i === index ? { ...item, consumableId: e.target.value } : item))} className="w-full rounded-lg bg-surface p-3 text-body-sm"><option value="">Selecciona consumible</option>{(state.catalogs.consumables || []).map((item: ConsumableCatalogItem) => <option key={item.id} value={item.id}>{item.nombre} ({item.unidad})</option>)}</select><button type="button" onClick={() => state.setSelectedConsumables(state.selectedConsumables.filter((_, i) => i !== index))} aria-label="Quitar consumible" className="px-2 text-red-700">×</button></div>
             <input aria-label="Cantidad mensual del consumible" type="number" min="0" value={entry.quantity} onChange={(e) => state.setSelectedConsumables(state.selectedConsumables.map((item, i) => i === index ? { ...item, quantity: Number(e.target.value) } : item))} className="input-numeric mt-2 w-full" placeholder="Cantidad mensual" />
           </div>)}
-          <button type="button" disabled={state.selectedConsumables.length >= state.catalogs.consumables.length} onClick={() => { const next = state.catalogs.consumables.find((item) => !state.selectedConsumables.some((selected) => selected.consumableId === item.id)); if (next) state.setSelectedConsumables([...state.selectedConsumables, { consumableId: next.id, quantity: 0 }]); }} className="btn-ghost mt-2"><Icon>add</Icon>Agregar consumible</button>
+          <button type="button" disabled={state.selectedConsumables.length >= (state.catalogs.consumables || []).length} onClick={() => { const next = (state.catalogs.consumables || []).find((item: ConsumableCatalogItem) => !state.selectedConsumables.some((selected) => selected.consumableId === item.id)); if (next) state.setSelectedConsumables([...state.selectedConsumables, { consumableId: next.id, quantity: 0 }]); }} className="btn-ghost mt-2"><Icon>add</Icon>Agregar consumible</button>
         </div>
         <div className="mt-5 border-t border-outline-variant pt-4">
           <div className="flex items-center justify-between"><p className="text-label-caps uppercase text-on-surface-variant">Gastos varios</p><span className="font-mono-metric text-secondary">{fmtMoney(state.miscExpenses.reduce((sum, item) => sum + item.amount, 0).toFixed(2))}</span></div>
@@ -376,5 +453,17 @@ export default function HomePage() {
     return <StepFour result={result} input={toGoldStandardInput()} onSubmitForReview={submitForReview} submitted={isSubmitted} />;
   };
 
-  return <><TopBar /><main className="mx-auto max-w-[1440px] px-4 pb-12 pt-28 lg:px-8">{activeRole === "SUPERVISOR" ? <SupervisorDashboard quotes={reviewQuotes} onChange={updateQuotes} /> : renderWizardStep()}</main></>;
+  return (
+    <>
+      <TopBar />
+      <KlinBotDrawer />
+      <main className="mx-auto max-w-[1440px] px-4 pb-12 pt-28 lg:px-8">
+        {activeRole === "SUPERVISOR" ? (
+          <SupervisorDashboard quotes={reviewQuotes} onChange={updateQuotes} />
+        ) : (
+          renderWizardStep()
+        )}
+      </main>
+    </>
+  );
 }

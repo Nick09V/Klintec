@@ -5,7 +5,10 @@ import {
   CurrentParameters,
   InfrastructureType,
   MachineryCatalogItem,
+  QuoteCalculationRequest,
   SurfaceCatalogItem,
+  TDRResponse,
+  KlinVisionResponse,
 } from "@/lib/api-types";
 
 export type ActiveRole = "OPERATIVO" | "SUPERVISOR";
@@ -133,6 +136,7 @@ export interface QuoteStoreState {
     chemicals: ChemicalCatalogItem[];
     machinery: MachineryCatalogItem[];
     consumables: ConsumableCatalogItem[];
+    consumibles?: ConsumableCatalogItem[];
     parameters: CurrentParameters | null;
   };
   setActiveRole: (role: ActiveRole) => void;
@@ -166,7 +170,10 @@ export interface QuoteStoreState {
   setSelectedConsumables: (items: QuoteStoreState["selectedConsumables"]) => void;
   setMiscExpenses: (items: MiscExpenseEntry[]) => void;
   setGovernanceStatus: (status: QuoteGovernanceStatus) => void;
+  applyTdrData: (tdr: TDRResponse) => void;
+  applyVisionInspection: (surfaceId: string, vision: KlinVisionResponse) => void;
   totalArea: () => number;
+  toCalculationRequest: () => QuoteCalculationRequest;
   toGoldStandardInput: () => QuoteInput;
 }
 
@@ -316,7 +323,123 @@ export const useQuoteStore = create<QuoteStoreState>((set, get) => ({
   setSelectedConsumables: (selectedConsumables) => set({ selectedConsumables }),
   setMiscExpenses: (miscExpenses) => set({ miscExpenses }),
   setGovernanceStatus: (governanceStatus) => set({ governanceStatus }),
+  applyTdrData: (tdr) => {
+    const state = get();
+    const cliente = tdr.entidades[0] || state.clientName || "Entidad SERCOP";
+    set((prev) => ({
+      projectName: `Servicio Limpieza ${cliente}`,
+      clientName: cliente,
+      contract: {
+        ...prev.contract,
+        cliente,
+        codigo_proceso: tdr.codigo_proceso,
+        presupuesto_referencial: tdr.presupuesto_referencial,
+        plazo_meses: tdr.plazo_meses || 12,
+      },
+      surfaces: tdr.metrajes.length > 0 ? tdr.metrajes.map((m, idx) => {
+        const cat = prev.catalogs.surfaces.find((s) => s.id === (m.tipo.toLowerCase().includes("quir") || m.tipo.toLowerCase().includes("uci") ? "area_critica" : "piso_vinilo")) || prev.catalogs.surfaces[0];
+        const isCorridor = m.tipo.toLowerCase().includes("pasillo");
+        return {
+          id: `tdr-surf-${idx}-${Date.now()}`,
+          catalogId: cat?.id || "piso_vinilo",
+          name: m.zona,
+          area: m.m2,
+          frequency: m.frecuencia.includes("3") ? 3 : m.frecuencia.includes("2") ? 2 : 1,
+          color: "bg-secondary",
+          chemicalId: prev.catalogs.chemicals[0]?.id || "",
+          zoneType: m.tipo,
+          risk: (m.tipo.toLowerCase().includes("quir") || m.tipo.toLowerCase().includes("uci")) ? "critico" : "general",
+          surface: "vinilo",
+          dirt: "media",
+          level: "estandar",
+          obstacles: "medio",
+          method: isCorridor ? "maquina" : "manual",
+          frequencyCode: m.frecuencia,
+          machineId: isCorridor ? (prev.catalogs.machinery[0]?.id || null) : null,
+        };
+      }) : prev.surfaces,
+    }));
+  },
+  applyVisionInspection: (surfaceId, vision) => {
+    set((state) => ({
+      surfaces: state.surfaces.map((s) => {
+        if (s.id !== surfaceId) return s;
+        const matchingChem = state.catalogs.chemicals.find((c) =>
+          vision.insumo_sugerido.toLowerCase().includes(c.nombre.toLowerCase().slice(0, 8))
+        );
+        const isForbiddenMachine = vision.maquinaria_sugerida && vision.maquinaria_sugerida.toLowerCase().includes("prohibid");
+        return {
+          ...s,
+          risk: (vision.nivel_riesgo === "critico" || vision.nivel_riesgo === "semicritico")
+            ? vision.nivel_riesgo as SurfaceEntry["risk"]
+            : s.risk,
+          chemicalId: matchingChem?.id || s.chemicalId,
+          method: (vision.maquinaria_sugerida && !isForbiddenMachine) ? "maquina" : "manual",
+        };
+      }),
+    }));
+  },
   totalArea: () => get().surfaces.reduce((sum, surface) => sum + surface.area, 0),
+  toCalculationRequest: (): QuoteCalculationRequest => {
+    const state = get();
+    return {
+      proyecto: {
+        nombre: state.projectName.trim() || state.contract.cliente.trim() || "Cotización CleanTech",
+        cliente: state.clientName.trim() || state.contract.cliente.trim() || undefined,
+        tipo_infraestructura: state.infrastructureType,
+      },
+      periodo: {
+        dias_operacion_mes: state.operatingDays,
+      },
+      horario_usuario: {
+        dias_laborables_mes: state.workdaysPerMonth,
+        horas_por_dia_laborable: state.hoursPerWorkday,
+        dias_fin_semana_mes: state.weekendDaysPerMonth,
+        horas_por_dia_fin_semana: state.hoursPerWeekendDay,
+        horas_extra_mes: state.overtimeHoursPerMonth,
+      },
+      turno: {
+        tipo: state.shiftType,
+        proporcion_horas_nocturnas_pct: state.nightHoursPct,
+      },
+      bonificacion_especialidad: state.specialtyBonus || "0.00",
+      superficies: state.surfaces.length === 0 ? [{
+        superficie_id: state.catalogs.surfaces[0]?.id || "piso_vinilo",
+        area_m2: 200,
+        frecuencia_diaria: 1,
+        quimico_id: state.catalogs.chemicals[0]?.id || undefined,
+      }] : state.surfaces.map((s) => ({
+        superficie_id: s.catalogId,
+        area_m2: s.area,
+        frecuencia_diaria: s.frequency,
+        quimico_id: s.chemicalId || undefined,
+      })),
+      maquinaria: state.selectedMachinery
+        .filter((item) => item.machineryId && item.hours > 0)
+        .map((item) => ({
+          maquinaria_id: item.machineryId,
+          horas_uso_mensual: item.hours,
+        })),
+      consumibles: state.selectedConsumables
+        .filter((item) => item.consumableId && item.quantity > 0)
+        .map((item) => ({
+          consumible_id: item.consumableId,
+          cantidad_mensual: item.quantity,
+        })),
+      gastos_varios: state.miscExpenses
+        .filter((item) => item.description.trim() && item.amount > 0)
+        .map((item) => ({
+          descripcion: item.description.trim(),
+          monto_mensual: item.amount,
+        })),
+      comercial: {
+        gastos_administrativos_pct: state.adminPct,
+        imprevistos_riesgo_pct: state.riskPct,
+        margen_neto_pct: state.marginPct,
+        descuento_pct: state.discountPct,
+      },
+    };
+  },
   toGoldStandardInput: () => {
     const state = get();
     return {

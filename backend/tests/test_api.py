@@ -146,3 +146,63 @@ def test_area_negativa_rechazada():
     r = client.post(f"{BASE}/cotizaciones/calcular", json=payload)
     assert r.status_code == 422
     assert "superficies[0].area_m2" in [e["campo"] for e in r.json()["errores"]]
+
+
+def test_klinbot_chat_endpoint():
+    r = client.post(f"{BASE}/klinbot/chat", json={"message": "¿Cómo desinfecto un quirófano en contingencia?"})
+    assert r.status_code == 200
+    body = r.json()
+    assert "response" in body
+    assert len(body["response"]) > 20
+    assert "hipoclorito" in body["response"].lower() or "química" in body["response"].lower() or "contingencia" in body["response"].lower()
+
+
+def test_klinbot_audit_endpoint():
+    r = client.post(f"{BASE}/klinbot/audit", json={
+        "quote_snapshot": {
+            "calculo": {
+                "consolidacion": {"piso_inviolable_respetado": True, "costo_operativo_directo": "5000.00", "precio_final": "6500.00"},
+                "advertencias": []
+            }
+        }
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert {"riesgo_general", "recomendaciones", "advertencias", "optimizaciones"} <= body.keys()
+    assert body["riesgo_general"] in ("bajo", "medio", "alto")
+
+
+def test_calcular_cotizacion_desde_quote_input():
+    quote_input_payload = {
+        "contrato": {
+            "sector": "privado",
+            "tipo": "recurrente",
+            "cliente": "Clínica San Rafael",
+            "tipologia": "hospitalaria",
+            "plazo_meses": 12,
+            "fecha_inicio": "2026-11-01"
+        },
+        "zonas": [{
+            "nombre": "Quirófanos",
+            "tipo_zona": "quirofano",
+            "riesgo": "critico",
+            "superficie": "vinilo",
+            "m2": 300,
+            "suciedad": "media",
+            "nivel": "estandar",
+            "obstaculos": "medio",
+            "metodo": "manual",
+            "frecuencia": "multidiaria_2",
+            "visitas_mes": 60,
+            "quimico_id": "desinf_5g"
+        }],
+        "turnos": [{"dias": ["L", "M", "X", "J", "V", "S", "D"], "inicio": "06:00", "fin": "14:00", "personas": 1}],
+        "opciones": {"opera_feriados": False, "permitir_parcial": False, "personal_mas_1_anio": True, "ausentismo_pct": 8, "salario_base": 482},
+        "economicos": {"supervision_pct": 6, "indirectos_pct": 8, "utilidad_pct": 12, "merma_pct": 3, "iva_pct": 15}
+    }
+    r = client.post(f"{BASE}/cotizaciones/calcular", json=quote_input_payload)
+    assert r.status_code == 200
+    body = r.json()
+    assert "consolidacion" in body
+    assert "partidas" in body
+    assert body["consolidacion"]["piso_inviolable_respetado"] is True

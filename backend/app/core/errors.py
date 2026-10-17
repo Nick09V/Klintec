@@ -23,7 +23,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def validation_handler(request: Request, exc: RequestValidationError):
         errores = []
         for err in exc.errors():
-            loc = [str(part) for part in err.get("loc", ()) if part != "body"]
+            loc = [
+                str(part) for part in err.get("loc", ())
+                if part not in ("body", "QuoteCalculationRequest", "QuoteInput")
+            ]
             campo = ""
             for part in loc:
                 if part.isdigit():

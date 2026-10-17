@@ -237,6 +237,37 @@ export interface GovernanceActionResponse {
   updated_at: string;
 }
 
+export interface KlinBotChatResponse {
+  response: string;
+  provider: string;
+}
+
+export interface KlinVisionResponse {
+  superficie_detectada: string;
+  nivel_riesgo: string;
+  insumo_sugerido: string;
+  maquinaria_sugerida?: string | null;
+  observaciones_bioseguridad?: string | null;
+}
+
+export interface TDRZoneItem {
+  zona: string;
+  m2: number;
+  tipo: string;
+  frecuencia: string;
+}
+
+export interface TDRResponse {
+  entidades: string[];
+  codigo_proceso: string;
+  presupuesto_referencial: number;
+  plazo_meses: number;
+  metrajes: TDRZoneItem[];
+  frecuencias: Array<Record<string, string>>;
+  turnos: string;
+  resumen: string;
+}
+
 export interface ApiProblem {
   title?: string;
   detail?: string;

@@ -1,0 +1,1171 @@
+{
+  "info": {
+    "name": "Klintec API v2",
+    "description": "Coleccion de pruebas del backend Klintec. Incluye casos validos, invalidos (422) y de borde para el motor V1, el motor V2 (Gold Standard $7,515.30), Gobernanza y KlinBot. Ejecutar con uvicorn: `cd backend && py -3 -m uvicorn app.main:app --reload`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "GET health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "health"
+              ]
+            },
+            "description": "Verifica servicio y normativa cargada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('status = ok', () => pm.expect(b.status).to.eql('ok'));",
+                  "pm.test('SBU 2026 = 482', () => pm.expect(b.normativa.sbu_2026_usd).to.eql(482));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Quotes V1 (/calculate)",
+      "item": [
+        {
+          "name": "V1 - Hospital (valido)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "calculate"
+              ]
+            },
+            "description": "Caso valido hospitalario.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"client_name\":\"Hospital Metropolitano de Quito\",\"typology\":\"HOSPITAL_CRITICAL\",\"items\":[{\"area_name\":\"Quirofanos y UCI\",\"area_sqm\":1250,\"issa_yield_sqm_per_hour\":105,\"daily_frequency\":3,\"shift_type\":\"24_7\",\"specialty_bonus_usd\":65,\"dilution_factor\":64,\"chemical_price_per_liter_usd\":24.5,\"solution_coverage_sqm_per_liter\":35,\"epp_kit_cost_per_operator_usd\":45,\"machinery_hourly_depreciation_usd\":3.4,\"machinery_hours_month\":120}],\"admin_expenses_pct\":0.08,\"risk_contingency_pct\":0.03,\"net_margin_pct\":0.14,\"negotiation_discount_pct\":0}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Costo directo > 0', () => pm.expect(b.direct_operating_cost_usd).to.be.above(0));",
+                  "pm.test('Cumple piso legal', () => pm.expect(b.is_below_legal_floor).to.eql(false));",
+                  "pm.test('Operarios >= 1', () => pm.expect(b.base_operators).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V1 - Preset Hospital",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/presets/hospital-metropolitano",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "presets",
+                "hospital-metropolitano"
+              ]
+            },
+            "description": "Devuelve el request semilla del Hospital Metropolitano."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Costo directo > 0', () => pm.expect(b.direct_operating_cost_usd).to.be.above(0));",
+                  "pm.test('Cumple piso legal', () => pm.expect(b.is_below_legal_floor).to.eql(false));",
+                  "pm.test('Operarios >= 1', () => pm.expect(b.base_operators).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V1 - Bajo piso legal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "calculate"
+              ]
+            },
+            "description": "Margen negativo + descuento => is_below_legal_floor = true.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"client_name\":\"Clinica Demo\",\"typology\":\"CORPORATE_COMMERCIAL\",\"items\":[{\"area_name\":\"Oficinas\",\"area_sqm\":1000,\"issa_yield_sqm_per_hour\":350,\"daily_frequency\":1,\"shift_type\":\"DIURNO\",\"specialty_bonus_usd\":0,\"dilution_factor\":64,\"chemical_price_per_liter_usd\":18.5,\"solution_coverage_sqm_per_liter\":40,\"epp_kit_cost_per_operator_usd\":32,\"machinery_hourly_depreciation_usd\":2.85,\"machinery_hours_month\":60}],\"admin_expenses_pct\":0,\"risk_contingency_pct\":0,\"net_margin_pct\":-0.2,\"negotiation_discount_pct\":0.15}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Bloqueado por piso legal FEDELIMP', () => pm.expect(b.is_below_legal_floor).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V1 - INVALIDO area_sqm=0",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "calculate"
+              ]
+            },
+            "description": "area_sqm debe ser > 0.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"client_name\":\"Clinica Demo\",\"typology\":\"CORPORATE_COMMERCIAL\",\"items\":[{\"area_name\":\"Oficinas\",\"area_sqm\":0,\"issa_yield_sqm_per_hour\":350,\"daily_frequency\":1,\"shift_type\":\"DIURNO\",\"specialty_bonus_usd\":0,\"dilution_factor\":64,\"chemical_price_per_liter_usd\":18.5,\"solution_coverage_sqm_per_liter\":40,\"epp_kit_cost_per_operator_usd\":32,\"machinery_hourly_depreciation_usd\":2.85,\"machinery_hours_month\":60}],\"admin_expenses_pct\":0,\"risk_contingency_pct\":0,\"net_margin_pct\":-0.2,\"negotiation_discount_pct\":0.15}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V1 - INVALIDO daily_frequency=9",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "calculate"
+              ]
+            },
+            "description": "daily_frequency permitido 1..6.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"client_name\":\"Clinica Demo\",\"typology\":\"CORPORATE_COMMERCIAL\",\"items\":[{\"area_name\":\"Oficinas\",\"area_sqm\":1000,\"issa_yield_sqm_per_hour\":350,\"daily_frequency\":9,\"shift_type\":\"DIURNO\",\"specialty_bonus_usd\":0,\"dilution_factor\":64,\"chemical_price_per_liter_usd\":18.5,\"solution_coverage_sqm_per_liter\":40,\"epp_kit_cost_per_operator_usd\":32,\"machinery_hourly_depreciation_usd\":2.85,\"machinery_hours_month\":60}],\"admin_expenses_pct\":0,\"risk_contingency_pct\":0,\"net_margin_pct\":-0.2,\"negotiation_discount_pct\":0.15}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V1 - INVALIDO typology",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "calculate"
+              ]
+            },
+            "description": "typology fuera del enum.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"client_name\":\"Clinica Demo\",\"typology\":\"HOSPITAL_GENERAL\",\"items\":[{\"area_name\":\"Oficinas\",\"area_sqm\":1000,\"issa_yield_sqm_per_hour\":350,\"daily_frequency\":1,\"shift_type\":\"DIURNO\",\"specialty_bonus_usd\":0,\"dilution_factor\":64,\"chemical_price_per_liter_usd\":18.5,\"solution_coverage_sqm_per_liter\":40,\"epp_kit_cost_per_operator_usd\":32,\"machinery_hourly_depreciation_usd\":2.85,\"machinery_hours_month\":60}],\"admin_expenses_pct\":0,\"risk_contingency_pct\":0,\"net_margin_pct\":-0.2,\"negotiation_discount_pct\":0.15}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Quotes V2 (/v2/calculate) - Gold Standard",
+      "item": [
+        {
+          "name": "V2 - GOLD STANDARD ($7,515.30)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "Caso exacto del fixture. Total = 7515.30.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('horas.trabajo = 847.8', () => pm.expect(b.horas.trabajo).to.eql(847.8));",
+                  "pm.test('horas.pagadas = 904.3', () => pm.expect(b.horas.pagadas).to.eql(904.3));",
+                  "pm.test('fte = 5.63', () => pm.expect(b.personal.fte).to.eql(5.63));",
+                  "pm.test('operarios = 6', () => pm.expect(b.personal.operarios).to.eql(6));",
+                  "pm.test('mod = 4086.78', () => pm.expect(b.mod).to.eql(4086.78));",
+                  "pm.test('ciq = 780.44', () => pm.expect(b.ciq).to.eql(780.44));",
+                  "pm.test('cmaq = 156.23', () => pm.expect(b.cmaq).to.eql(156.23));",
+                  "pm.test('costo_directo = 5023.44', () => pm.expect(b.costo_directo).to.eql(5023.44));",
+                  "pm.test('equilibrio = 5750.84', () => pm.expect(b.equilibrio).to.eql(5750.84));",
+                  "pm.test('precio = 6535.04', () => pm.expect(b.precio).to.eql(6535.04));",
+                  "pm.test('iva = 980.26', () => pm.expect(b.iva).to.eql(980.26));",
+                  "pm.test('total = 7515.30', () => pm.expect(b.total).to.eql(7515.3));",
+                  "pm.test('semaforo = verde', () => pm.expect(b.semaforo).to.eql('verde'));",
+                  "pm.test('sin alertas', () => pm.expect(b.alertas).to.have.lengthOf(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - Multi-zona (manual + maquina)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "Quirofano manual + oficina con fregadora.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"desinf_5g\"},{\"nombre\":\"Oficinas\",\"tipo_zona\":\"oficina\",\"riesgo\":\"general\",\"superficie\":\"epoxico\",\"m2\":500,\"suciedad\":\"ligera\",\"nivel\":\"basico\",\"obstaculos\":\"bajo\",\"metodo\":\"maquina\",\"maquina_id\":\"fregadora_compacta\",\"frecuencia\":\"diaria_1\",\"visitas_mes\":22,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('total > 0', () => pm.expect(b.total).to.be.above(0));",
+                  "pm.test('operarios >= 1', () => pm.expect(b.personal.operarios).to.be.at.least(1));",
+                  "pm.test('lineas_apu presente', () => pm.expect(b.lineas_apu.length).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - Quimico desconocido (alerta)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "quimico_id inexistente => 200 + alerta.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"insumo_inexistente\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Devuelve alertas', () => pm.expect(b.alertas.length).to.be.at.least(1));",
+                  "pm.test('alerta QUIMICO_DESCONOCIDO', () => pm.expect(pm.response.json().alertas.map(a => a.codigo)).to.include('QUIMICO_DESCONOCIDO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - Rendimiento estimado (alerta)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "tipo_zona fuera del catalogo => 200 + alerta de rendimiento.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"laboratorio\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Devuelve alertas', () => pm.expect(b.alertas.length).to.be.at.least(1));",
+                  "pm.test('alerta RENDIMIENTO_ESTIMADO', () => pm.expect(pm.response.json().alertas.map(a => a.codigo)).to.include('RENDIMIENTO_ESTIMADO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - INVALIDO m2=0",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "m2 debe ser > 0.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":0,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - INVALIDO visitas_mes=0",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "visitas_mes debe ser >= 1.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":0,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - INVALIDO riesgo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "riesgo fuera del enum.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"altisimo\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - INVALIDO metodo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "metodo solo manual|maquina.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"aspirado\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - INVALIDO salario_base=400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "salario_base debe ser >= 482.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":400},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - INVALIDO utilidad_pct=100",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "utilidad_pct debe ser < 100.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"2026-11-01\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":100,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V2 - INVALIDO fecha_inicio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/quotes/v2/calculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quotes",
+                "v2",
+                "calculate"
+              ]
+            },
+            "description": "fecha_inicio debe ser formato ISO (YYYY-MM-DD).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"contrato\":{\"sector\":\"privado\",\"tipo\":\"recurrente\",\"cliente\":\"Clinica San Rafael\",\"tipologia\":\"hospitalaria\",\"plazo_meses\":12,\"fecha_inicio\":\"01/11/2026\"},\"zonas\":[{\"nombre\":\"Quirofanos\",\"tipo_zona\":\"quirofano\",\"riesgo\":\"critico\",\"superficie\":\"vinilo\",\"m2\":300,\"suciedad\":\"media\",\"nivel\":\"estandar\",\"obstaculos\":\"medio\",\"metodo\":\"manual\",\"frecuencia\":\"multidiaria_2\",\"visitas_mes\":60,\"quimico_id\":\"desinf_5g\"}],\"turnos\":[{\"dias\":[\"L\",\"M\",\"X\",\"J\",\"V\",\"S\",\"D\"],\"inicio\":\"06:00\",\"fin\":\"14:00\",\"personas\":1}],\"opciones\":{\"opera_feriados\":false,\"permitir_parcial\":false,\"personal_mas_1_anio\":true,\"ausentismo_pct\":8,\"salario_base\":482},\"economicos\":{\"supervision_pct\":6,\"indirectos_pct\":8,\"utilidad_pct\":12,\"merma_pct\":3,\"iva_pct\":15}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Governance (/transition)",
+      "item": [
+        {
+          "name": "GOV - APPROVE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/governance/transition",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "governance",
+                "transition"
+              ]
+            },
+            "description": "El supervisor sella la cotizacion.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"quote_code\":\"KLT-2026-0001\",\"actor_role\":\"SUPERVISOR\",\"action\":\"APPROVE\",\"comment\":\"Cumple piso legal IESS 2026\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('new_status = APPROVED', () => pm.expect(b.new_status).to.eql('APPROVED'));",
+                  "pm.test('pdf_unlocked = true', () => pm.expect(b.pdf_unlocked).to.eql(true));",
+                  "pm.test('approval_hash presente', () => pm.expect(b.approval_hash).to.be.a('string'));",
+                  "pm.test('sin watermark', () => pm.expect(b.watermark_text).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GOV - REQUEST_CHANGES",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/governance/transition",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "governance",
+                "transition"
+              ]
+            },
+            "description": "Devuelve con marca de agua.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"quote_code\":\"KLT-2026-0001\",\"actor_role\":\"SUPERVISOR\",\"action\":\"REQUEST_CHANGES\",\"comment\":\"Ajustar frecuencia de quirofanos\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('new_status = CHANGES_REQUESTED', () => pm.expect(b.new_status).to.eql('CHANGES_REQUESTED'));",
+                  "pm.test('pdf_unlocked = false', () => pm.expect(b.pdf_unlocked).to.eql(false));",
+                  "pm.test('con watermark BORRADOR', () => pm.expect(b.watermark_text).to.include('BORRADOR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GOV - REJECT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/governance/transition",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "governance",
+                "transition"
+              ]
+            },
+            "description": "Rechazo bloquea el PDF.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"quote_code\":\"KLT-2026-0001\",\"actor_role\":\"SUPERVISOR\",\"action\":\"REJECT\",\"comment\":\"No cubre el piso legal\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('new_status = REJECTED', () => pm.expect(pm.response.json().new_status).to.eql('REJECTED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GOV - INVALIDO action",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/governance/transition",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "governance",
+                "transition"
+              ]
+            },
+            "description": "action fuera del enum.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"quote_code\":\"KLT-2026-0001\",\"actor_role\":\"SUPERVISOR\",\"action\":\"DELETE\",\"comment\":\"x\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 (validacion Pydantic)', () => pm.response.to.have.status(422));",
+                  "pm.test('detail es un array de errores', () => pm.expect(pm.response.json().detail).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. KlinBot",
+      "item": [
+        {
+          "name": "KLINBOT - Audit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/klinbot/audit",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "klinbot",
+                "audit"
+              ]
+            },
+            "description": "Auditoria RAG sobre el resultado V1.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"client_name\":\"Hospital Metropolitano de Quito\",\"typology\":\"HOSPITAL_CRITICAL\",\"items\":[{\"area_name\":\"Quirofanos y UCI\",\"area_sqm\":1250,\"issa_yield_sqm_per_hour\":105,\"daily_frequency\":3,\"shift_type\":\"24_7\",\"specialty_bonus_usd\":65,\"dilution_factor\":64,\"chemical_price_per_liter_usd\":24.5,\"solution_coverage_sqm_per_liter\":35,\"epp_kit_cost_per_operator_usd\":45,\"machinery_hourly_depreciation_usd\":3.4,\"machinery_hours_month\":120}],\"admin_expenses_pct\":0.08,\"risk_contingency_pct\":0.03,\"net_margin_pct\":0.14,\"negotiation_discount_pct\":0}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('provider_used presente', () => pm.expect(b.provider_used).to.be.a('string'));",
+                  "pm.test('alerts es array', () => pm.expect(b.alerts).to.be.an('array'));",
+                  "pm.test('recommended_action valido', () => pm.expect(['APROBAR','CORREGIR','RECHAZAR']).to.include(b.recommended_action));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "KLINBOT - Vision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/klinbot/vision",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "klinbot",
+                "vision"
+              ]
+            },
+            "description": "Analisis de foto (sin body)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('detected_surface presente', () => pm.expect(b.detected_surface).to.be.a('string'));",
+                  "pm.test('dilution_ratio presente', () => pm.expect(b.dilution_ratio).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

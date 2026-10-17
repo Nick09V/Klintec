@@ -4,6 +4,9 @@ from app.domain.calc_engine import (
     QuoteCalculationResponse,
     calculate_deterministic_apu,
     AreaItemInput,
+    QuoteInput,
+    QuoteResult,
+    calcular_cotizacion,
 )
 
 router = APIRouter(prefix="/quotes", tags=["1. Motor Determinista APU & Simulacion"])
@@ -16,6 +19,18 @@ async def calculate_quote_endpoint(payload: QuoteCalculationRequest) -> QuoteCal
     el Piso Legal Inviolable (Candado FEDELIMP) y los indicadores Eco-LACIF.
     """
     return calculate_deterministic_apu(payload)
+
+
+@router.post("/v2/calculate", response_model=QuoteResult)
+async def calculate_quote_v2_endpoint(payload: QuoteInput) -> QuoteResult:
+    """
+    Motor V2 — Cadena de calculo Gold Standard ($7,515.30).
+
+    Recibe el contrato QuoteInput (contrato, zonas, turnos, opciones, economicos)
+    y devuelve la estructura APU determinista verificada contra
+    contracts/fixtures/gold_standard_result.json.
+    """
+    return calcular_cotizacion(payload)
 
 
 @router.get("/presets/hospital-metropolitano", response_model=QuoteCalculationRequest)

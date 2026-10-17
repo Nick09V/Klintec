@@ -5,7 +5,6 @@ import TopBar from "@/components/TopBar";
 import SupervisorDashboard from "@/components/SupervisorDashboard";
 import { api, ApiError } from "@/lib/api";
 import {
-  QuoteCalculationRequest,
   QuoteCalculationResponse,
 } from "@/lib/api-types";
 import { cn, fmtMoney, fmtNumber, INFRASTRUCTURE_LABELS, TYPOLOGIES } from "@/lib/constants";
@@ -32,7 +31,7 @@ function errorMessage(error: unknown): string {
   return "No fue posible conectar con el motor de cotización.";
 }
 
-function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationResponse, payload: QuoteCalculationRequest) => void }) {
+function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationResponse, payload: QuoteInput) => void }) {
   const state = useQuoteStore();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -64,25 +63,7 @@ function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationRespon
   async function calculate() {
     setLoading(true);
     setMessage("");
-    const payload: QuoteCalculationRequest = {
-      proyecto: { nombre: state.projectName, cliente: state.clientName || undefined, tipo_infraestructura: state.infrastructureType },
-      periodo: { dias_operacion_mes: state.operatingDays },
-      horario_usuario: {
-        dias_laborables_mes: state.workdaysPerMonth,
-        horas_por_dia_laborable: state.hoursPerWorkday,
-        dias_fin_semana_mes: state.weekendDaysPerMonth,
-        horas_por_dia_fin_semana: state.hoursPerWeekendDay,
-        horas_extra_mes: state.overtimeHoursPerMonth,
-      },
-      turno: { tipo: state.shiftType, proporcion_horas_nocturnas_pct: state.nightHoursPct },
-      bonificacion_especialidad: state.specialtyBonus,
-      superficies: state.surfaces.map((surface) => ({ superficie_id: surface.catalogId, area_m2: surface.area, frecuencia_diaria: surface.frequency, quimico_id: surface.chemicalId || undefined })),
-      maquinaria: state.selectedMachinery.filter((item) => item.machineryId).map((item) => ({ maquinaria_id: item.machineryId, horas_uso_mensual: item.hours })),
-      consumibles: state.selectedConsumables.filter((item) => item.consumableId).map((item) => ({ consumible_id: item.consumableId, cantidad_mensual: item.quantity })),
-      gastos_varios: state.miscExpenses.filter((item) => item.description.trim()).map((item) => ({ descripcion: item.description.trim(), monto_mensual: item.amount })),
-      comercial: { gastos_administrativos_pct: state.adminPct, imprevistos_riesgo_pct: state.riskPct, margen_neto_pct: state.marginPct, descuento_pct: state.discountPct },
-      version_parametros: state.catalogs.parameters?.version_parametros,
-    };
+    const payload = state.toGoldStandardInput();
     try {
       onCalculate(await api.calculateQuote(payload), payload);
       state.setCurrentStep(2);
@@ -271,7 +252,7 @@ function StepFour({ result, input, onSubmitForReview, submitted }: {
 
 export default function HomePage() {
   const [result, setResult] = useState<QuoteCalculationResponse | null>(null);
-  const [requestPayload, setRequestPayload] = useState<QuoteCalculationRequest | null>(null);
+  const [requestPayload, setRequestPayload] = useState<QuoteInput | null>(null);
   const [reviewQuotes, setReviewQuotes] = useState<ReviewQuote[]>([]);
   const { currentStep, setCurrentStep, activeRole, setGovernanceStatus, toGoldStandardInput } = useQuoteStore();
   useEffect(() => {

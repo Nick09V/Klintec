@@ -1,4 +1,5 @@
-import { QuoteCalculationRequest, QuoteCalculationResponse } from "@/lib/api-types";
+import { QuoteCalculationResponse } from "@/lib/api-types";
+import type { QuoteInput } from "@/store/useQuoteStore";
 
 export type ReviewStatus = "IN_REVIEW" | "APPROVED" | "CHANGES_REQUESTED" | "REJECTED";
 
@@ -8,7 +9,7 @@ export interface ReviewQuote {
   createdAt: string;
   projectName: string;
   clientName: string;
-  request: QuoteCalculationRequest;
+  request: QuoteInput;
   result: QuoteCalculationResponse;
   status: ReviewStatus;
   comment: string;
@@ -36,14 +37,14 @@ export function saveReviewQuotes(quotes: ReviewQuote[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(quotes));
 }
 
-export function createReviewQuote(request: QuoteCalculationRequest, result: QuoteCalculationResponse): ReviewQuote {
+export function createReviewQuote(request: QuoteInput, result: QuoteCalculationResponse): ReviewQuote {
   const timestamp = Date.now();
   return {
     id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `quote-${timestamp}`,
     code: `KLT-${new Date(timestamp).getFullYear()}-${String(timestamp).slice(-6)}`,
     createdAt: new Date(timestamp).toISOString(),
-    projectName: request.proyecto.nombre,
-    clientName: request.proyecto.cliente || "Sin cliente indicado",
+    projectName: `Cotización ${request.contrato.cliente}`,
+    clientName: request.contrato.cliente,
     request,
     result,
     status: "IN_REVIEW",

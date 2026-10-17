@@ -5,12 +5,12 @@ import {
   ConsumableCatalogItem,
   CurrentParameters,
   MachineryCatalogItem,
-  QuoteCalculationRequest,
   QuoteCalculationResponse,
   GovernanceActionResponse,
   KlinBotAuditResponse,
   SurfaceCatalogItem,
 } from "@/lib/api-types";
+import type { QuoteInput } from "@/store/useQuoteStore";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -48,7 +48,7 @@ export const api = {
   getMachinery: () => request<CatalogResponse<MachineryCatalogItem>>("/catalogos/maquinaria"),
   getConsumables: () => request<CatalogResponse<ConsumableCatalogItem>>("/catalogos/consumibles"),
   getParameters: () => request<CurrentParameters>("/parametros/vigentes"),
-  calculateQuote: (payload: QuoteCalculationRequest) =>
+  calculateQuote: (payload: QuoteInput) =>
     request<QuoteCalculationResponse>("/cotizaciones/calcular", {
       method: "POST",
       body: JSON.stringify(payload),

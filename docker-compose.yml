@@ -1,125 +1,84 @@
-name: klintec
+version: '3.9'
 
 services:
-  # =========================================================================
-  # 1. BASE DE DATOS RELACIONAL + VECTORIAL RAG (PostgreSQL 16.6 + pgvector)
-  # =========================================================================
-  klintec-db:
+  postgres:
     image: pgvector/pgvector:pg16
-    container_name: klintec-db
+    container_name: klintec_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-klintec}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-klintec2026}
-      POSTGRES_DB: ${POSTGRES_DB:-klintec_db}
+      POSTGRES_USER: klintec
+      POSTGRES_PASSWORD: klintec
+      POSTGRES_DB: klintec
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
-      - klintec_pgdata:/var/lib/postgresql/data
-      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-klintec} -d ${POSTGRES_DB:-klintec_db}"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U klintec"]
+      interval: 10s
       timeout: 5s
       retries: 5
 
-  # =========================================================================
-  # 2. CACHE PARAMETRICA L1 (<2ms) Y BROKER DE TAREAS (Redis 7.2 Alpine)
-  # =========================================================================
-  klintec-redis:
+  redis:
     image: redis:7.2-alpine
-    container_name: klintec-redis
+    container_name: klintec_redis
     restart: unless-stopped
-    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "6379:6379"
     volumes:
-      - klintec_redisdata:/data
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 5
 
-  # =========================================================================
-  # 3. ALMACENAMIENTO S3 LOCAL PARA PDFs SELLADOS Y FOTOS (MinIO)
-  # =========================================================================
-  klintec-minio:
+  minio:
     image: minio/minio:RELEASE.2024-10-13T13-34-11Z
-    container_name: klintec-minio
+    container_name: klintec_minio
     restart: unless-stopped
-    command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-klintecadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-klintec2026secret}
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "9000:9000"
+      - "9001:9001"
     volumes:
-      - klintec_miniodata:/data
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
-  # Inicializador automatico del bucket "klintec-proposals" en MinIO
-  klintec-minio-init:
-    image: minio/mc:latest
-    container_name: klintec-minio-init
-    depends_on:
-      - klintec-minio
-    entrypoint: >
-      /bin/sh -c "
-      sleep 3;
-      /usr/bin/mc alias set local http://klintec-minio:9000 $${MINIO_ROOT_USER:-klintecadmin} $${MINIO_ROOT_PASSWORD:-klintec2026secret};
-      /usr/bin/mc mb --ignore-existing local/$${MINIO_BUCKET:-klintec-proposals};
-      /usr/bin/mc anonymous set download local/$${MINIO_BUCKET:-klintec-proposals};
-      exit 0;
-      "
-
-  # =========================================================================
-  # 4. BACKEND API, MOTOR DETERMINISTA, KLINBOT RAG Y WEASYPRINT PDF (FastAPI)
-  # =========================================================================
-  klintec-backend:
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: klintec-backend
+    container_name: klintec_backend
     restart: unless-stopped
-    env_file:
-      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-klintec}:${POSTGRES_PASSWORD:-klintec2026}@klintec-db:5432/${POSTGRES_DB:-klintec_db}
-      REDIS_URL: redis://klintec-redis:6379/0
-      MINIO_ENDPOINT: http://klintec-minio:9000
+      DATABASE_URL: postgresql+asyncpg://klintec:klintec@postgres:5432/klintec
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: klintec
+      MINIO_SECURE: false
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "8000:8000"
     volumes:
       - ./backend:/app
-    depends_on:
-      klintec-db:
-        condition: service_healthy
-      klintec-redis:
-        condition: service_healthy
-
-  # =========================================================================
-  # 5. FRONTEND WEB SPA (Next.js 14.2 + Tailwind + Recharts + Zustand)
-  # =========================================================================
-  klintec-frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: klintec-frontend
-    restart: unless-stopped
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    depends_on:
-      - klintec-backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 volumes:
-  klintec_pgdata:
-  klintec_redisdata:
-  klintec_miniodata:
+  postgres_data:
+  redis_data:
+  minio_data:

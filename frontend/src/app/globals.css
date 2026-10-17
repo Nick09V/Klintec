@@ -1,3 +1,117 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    overscroll-behavior: none;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #c6c6cd;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #76777d;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-container-lowest rounded-xl shadow-sm;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded font-body text-mono-metric-sm font-semibold;
+  }
+  .badge-secondary {
+    @apply badge bg-secondary text-on-secondary;
+  }
+  .badge-surface {
+    @apply badge bg-surface-container text-on-surface-variant;
+  }
+  .section-number {
+    @apply w-6 h-6 rounded bg-primary text-on-primary font-mono-metric text-mono-metric-sm flex items-center justify-center font-semibold;
+  }
+  .input-numeric {
+    @apply w-full bg-surface-container-lowest py-2.5 px-3 pr-12 font-mono-metric text-mono-metric-md text-on-surface rounded focus:outline-none focus:ring-1 focus:ring-secondary text-right font-semibold transition-colors;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded bg-primary hover:bg-primary-container text-on-primary font-headline text-headline-sm transition-all shadow-sm;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded bg-secondary hover:bg-on-secondary-container text-on-secondary font-headline text-headline-sm transition-all shadow-md;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-headline text-headline-sm transition-colors;
+  }
+}
+
+/* Material Symbols */
+.material-symbols-outlined {
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
+}
+
+/* Range slider styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-track {
+  height: 8px;
+  background: #d3e4fe;
+  border-radius: 4px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #000000;
+  border-radius: 50%;
+  margin-top: -6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+input[type="range"]::-moz-range-track {
+  height: 8px;
+  background: #d3e4fe;
+  border-radius: 4px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #000000;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Accent for checkboxes */
+input[type="checkbox"] {
+  accent-color: #006398;
+}
+
+/* Smooth page transitions */
+.step-enter {
+  animation: fade-in 0.3s ease-out;
+}

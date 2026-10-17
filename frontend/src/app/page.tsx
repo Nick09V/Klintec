@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import TopBar from "@/components/TopBar";
+import SupervisorDashboard from "@/components/SupervisorDashboard";
 import { api, ApiError } from "@/lib/api";
 import {
   QuoteCalculationRequest,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/api-types";
 import { cn, fmtMoney, fmtNumber, INFRASTRUCTURE_LABELS, TYPOLOGIES } from "@/lib/constants";
 import { useQuoteStore } from "@/store/useQuoteStore";
+import { createReviewQuote, loadReviewQuotes, ReviewQuote, saveReviewQuotes } from "@/lib/supervisor-queue";
 
 function Icon({ children }: { children: string }) {
   return <span className="material-symbols-outlined align-middle">{children}</span>;
@@ -30,7 +32,7 @@ function errorMessage(error: unknown): string {
   return "No fue posible conectar con el motor de cotización.";
 }
 
-function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationResponse) => void }) {
+function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationResponse, payload: QuoteCalculationRequest) => void }) {
   const state = useQuoteStore();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -82,7 +84,7 @@ function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationRespon
       version_parametros: state.catalogs.parameters?.version_parametros,
     };
     try {
-      onCalculate(await api.calculateQuote(payload));
+      onCalculate(await api.calculateQuote(payload), payload);
       state.setCurrentStep(2);
       setMessage("Cálculo determinista actualizado.");
     } catch (error) {
@@ -172,7 +174,7 @@ function StepOne({ onCalculate }: { onCalculate: (result: QuoteCalculationRespon
   </div>;
 }
 
-function StepTwo({ result }: { result: QuoteCalculationResponse }) {
+function StepTwo({ result, onSubmitForReview, submitted }: { result: QuoteCalculationResponse; onSubmitForReview: () => void; submitted: boolean }) {
   return <div className="step-enter"><SectionTitle eyebrow="Paso 02 / Transparencia de costos" title="Desglose técnico APU" description={`Resultado del motor · parámetros ${result.version_parametros} · hash ${result.hash_calculo}`} />
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MoneyCard label="MOD" value={result.mod.total} detail={`${result.mod.operarios_base} operarios base`} /><MoneyCard label="CIQ" value={result.ciq.total} detail="Químicos, consumibles y EPP" /><MoneyCard label="CMAQ" value={result.cmaq.total} detail="Depreciación y operación" /><MoneyCard label="Gastos varios" value={result.gastos_varios.total} detail={`${result.gastos_varios.lineas.length} conceptos mensuales`} /></div>
     <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -181,11 +183,29 @@ function StepTwo({ result }: { result: QuoteCalculationResponse }) {
     </div>
     <div className="card mt-6 overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-body-sm"><thead className="bg-surface-container-low text-label-caps uppercase"><tr><th className="p-4">Partida</th><th className="p-4">Unidad</th><th className="p-4 text-right">Unitario</th><th className="p-4 text-right">Total</th><th className="p-4">Fuente</th></tr></thead><tbody>{result.partidas.map((item) => <tr key={item.id} className={cn("border-t border-outline-variant", item.id === "DES-01" && "bg-red-50 text-red-800")}><td className="p-4"><span className="font-mono-metric text-secondary">{item.id}</span><p className="font-semibold">{item.descripcion}</p></td><td className="p-4">{item.unidad}</td><td className="p-4 text-right font-mono-metric">{fmtMoney(item.precio_unitario)}</td><td className="p-4 text-right font-mono-metric font-semibold">{fmtMoney(item.total)}</td><td className="p-4 text-on-surface-variant">{item.fuente}</td></tr>)}</tbody></table></div><div className="flex justify-between border-t border-outline-variant bg-surface-container-low p-4 font-semibold"><span>Costo operativo directo</span><span className="font-mono-metric">{fmtMoney(result.consolidacion.costo_operativo_directo)}</span></div></div>
     <div className="mt-6 grid gap-6 lg:grid-cols-2"><div className="card p-5"><h2 className="font-headline text-headline-md">Consolidación</h2><dl className="mt-3 space-y-2 text-body-sm">{[["Gastos administrativos", result.consolidacion.gastos_administrativos], ["Imprevistos / riesgo", result.consolidacion.imprevistos_riesgo], ["Margen neto", result.consolidacion.margen_neto], ["Subtotal antes del descuento", result.consolidacion.subtotal_oferta]].map(([label, value]) => <div key={label} className="flex justify-between"><dt>{label}</dt><dd className="font-mono-metric">{fmtMoney(value)}</dd></div>)}<div className="flex justify-between text-red-800"><dt>Descuento ({fmtNumber(result.consolidacion.descuento_pct)}%)</dt><dd className="font-mono-metric">−{fmtMoney(result.consolidacion.descuento_comercial)}</dd></div><div className="flex justify-between border-t border-outline-variant pt-2 font-semibold"><dt>Precio final</dt><dd className="font-mono-metric">{fmtMoney(result.consolidacion.precio_final)}</dd></div></dl><p className="mt-4 text-body-sm">{result.consolidacion.piso_inviolable_respetado ? "Piso inviolable respetado." : "Advertencia: el piso inviolable no fue respetado."}</p></div><div className="card p-5"><h2 className="font-headline text-headline-md">Supuestos y advertencias</h2>{result.supuestos.map((item) => <p key={item} className="mt-2 text-body-sm">• {item}</p>)}{result.advertencias.length === 0 ? <p className="mt-2 text-body-sm text-on-surface-variant">Sin advertencias.</p> : result.advertencias.map((item) => <div key={`${item.codigo}-${item.campo}`} className={cn("mt-3 rounded p-3 text-body-sm", item.severidad === "critica" ? "bg-red-100 text-red-900" : item.severidad === "advertencia" ? "bg-amber-100 text-amber-900" : "bg-surface-container-low")}><strong>{item.codigo}</strong><p>{item.mensaje}</p></div>)}</div></div>
+    <button type="button" onClick={onSubmitForReview} disabled={submitted} className="btn-primary mt-6">{submitted ? "Enviado a revisión del supervisor" : "Enviar cotización a revisión"}</button>
   </div>;
 }
 
 export default function HomePage() {
   const [result, setResult] = useState<QuoteCalculationResponse | null>(null);
-  const { currentStep, setCurrentStep } = useQuoteStore();
-  return <><TopBar /><main className="mx-auto max-w-[1440px] px-4 pb-12 pt-28 lg:px-8">{!result || currentStep === 1 ? <StepOne onCalculate={setResult} /> : <><StepTwo result={result} /><button onClick={() => setCurrentStep(1)} className="btn-ghost mt-6"><Icon>arrow_back</Icon>Editar datos</button></>}</main></>;
+  const [requestPayload, setRequestPayload] = useState<QuoteCalculationRequest | null>(null);
+  const [reviewQuotes, setReviewQuotes] = useState<ReviewQuote[]>([]);
+  const { currentStep, setCurrentStep, activeRole, setGovernanceStatus } = useQuoteStore();
+  useEffect(() => {
+    const savedQuotes = loadReviewQuotes();
+    setReviewQuotes(savedQuotes);
+    if (savedQuotes[0]) setGovernanceStatus(savedQuotes[0].status);
+  }, [setGovernanceStatus]);
+  function updateQuotes(next: ReviewQuote[]) {
+    setReviewQuotes(next);
+    saveReviewQuotes(next);
+    if (next[0]) setGovernanceStatus(next[0].status);
+  }
+  function submitForReview() {
+    if (!result || !requestPayload || reviewQuotes.some((item) => item.result.hash_calculo === result.hash_calculo)) return;
+    updateQuotes([createReviewQuote(requestPayload, result), ...reviewQuotes]);
+  }
+  const isSubmitted = Boolean(result && reviewQuotes.some((item) => item.result.hash_calculo === result.hash_calculo));
+  return <><TopBar /><main className="mx-auto max-w-[1440px] px-4 pb-12 pt-28 lg:px-8">{activeRole === "SUPERVISOR" ? <SupervisorDashboard quotes={reviewQuotes} onChange={updateQuotes} /> : !result || currentStep === 1 ? <StepOne onCalculate={(calculation, payload) => { setResult(calculation); setRequestPayload(payload); }} /> : <><StepTwo result={result} onSubmitForReview={submitForReview} submitted={isSubmitted} /><button onClick={() => setCurrentStep(1)} className="btn-ghost mt-6"><Icon>arrow_back</Icon>Editar datos</button></>}</main></>;
 }

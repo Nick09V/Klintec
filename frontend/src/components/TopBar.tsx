@@ -50,7 +50,7 @@ export default function TopBar() {
         </div>
 
         {/* Step Navigation */}
-        <nav className="hidden xl:flex items-center gap-1 bg-surface-container-low px-1 py-1 rounded-xl">
+        {activeRole === "OPERATIVO" && <nav className="hidden xl:flex items-center gap-1 bg-surface-container-low px-1 py-1 rounded-xl">
           {steps.map((item) => (
             <button
               key={item.step}
@@ -65,7 +65,7 @@ export default function TopBar() {
               {item.label}
             </button>
           ))}
-        </nav>
+        </nav>}
 
         {/* Right section */}
         <div className="flex items-center gap-3 shrink-0">
@@ -134,7 +134,7 @@ export default function TopBar() {
       </div>
 
       {/* Mobile step nav */}
-      <div className="xl:hidden flex overflow-x-auto gap-1 px-4 pb-2 bg-surface-container-lowest">
+      {activeRole === "OPERATIVO" && <div className="xl:hidden flex overflow-x-auto gap-1 px-4 pb-2 bg-surface-container-lowest">
         {steps.map((item) => (
           <button
             key={item.step}
@@ -149,7 +149,7 @@ export default function TopBar() {
             {item.label}
           </button>
         ))}
-      </div>
+      </div>}
     </header>
   );
 }

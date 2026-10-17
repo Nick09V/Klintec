@@ -220,6 +220,23 @@ export interface QuoteCalculationResponse {
   fuentes: Array<{ tipo: string; referencia: string; version: string }>;
 }
 
+export interface KlinBotAuditResponse {
+  recomendaciones: string[];
+  advertencias: string[];
+  riesgo_general: string;
+  optimizaciones: Array<{ titulo: string; ahorro_mensual_estimado: string }>;
+}
+
+export interface GovernanceActionResponse {
+  quote_code: string;
+  new_status: "DRAFT" | "IN_REVIEW" | "APPROVED" | "CHANGES_REQUESTED" | "REJECTED";
+  pdf_unlocked: boolean;
+  watermark_text: string | null;
+  approval_hash: string | null;
+  qr_verification_url: string | null;
+  updated_at: string;
+}
+
 export interface ApiProblem {
   title?: string;
   detail?: string;

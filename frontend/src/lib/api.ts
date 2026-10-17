@@ -7,6 +7,8 @@ import {
   MachineryCatalogItem,
   QuoteCalculationRequest,
   QuoteCalculationResponse,
+  GovernanceActionResponse,
+  KlinBotAuditResponse,
   SurfaceCatalogItem,
 } from "@/lib/api-types";
 
@@ -50,5 +52,15 @@ export const api = {
     request<QuoteCalculationResponse>("/cotizaciones/calcular", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  auditQuote: (quoteSnapshot: unknown) =>
+    request<KlinBotAuditResponse>("/klinbot/audit", {
+      method: "POST",
+      body: JSON.stringify({ quote_snapshot: quoteSnapshot }),
+    }),
+  transitionQuote: (quoteCode: string, action: "APPROVE" | "REQUEST_CHANGES" | "REJECT", comment: string) =>
+    request<GovernanceActionResponse>("/governance/transition", {
+      method: "POST",
+      body: JSON.stringify({ quote_code: quoteCode, actor_role: "SUPERVISOR", action, comment }),
     }),
 };

@@ -44,5 +44,8 @@
     "utilidad_pct": 12,
     "merma_pct": 3,
     "iva_pct": 15
-  }
+  },
+  "maquinaria": [],
+  "consumibles": [],
+  "gastos_varios": []
 }

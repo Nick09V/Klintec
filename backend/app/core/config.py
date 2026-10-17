@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     debug: bool = False
 
+    # Parámetros normativos usados por el motor APU Gold Standard.
+    HORAS_EFECTIVAS_TURNO: float = 7.5
+    SBU_2026_USD: float = 482.0
+    RECARGO_NOCTURNO_PCT: float = 0.25
+    IESS_PATRONAL_PCT: float = 0.1215
+    FONDO_RESERVA_PCT: float = 0.0833
+    DECIMO_TERCERO_PCT: float = 0.0833
+    DECIMO_CUARTO_MENSUAL_USD: float = 40.17
+    VACACIONES_PCT: float = 0.0417
+    FACTOR_REEMPLAZO_AUSENTISMO: float = 1.18
+
     # Base de datos (PostgreSQL + pgvector)
     database_url: str = "postgresql+asyncpg://klintec:klintec@localhost:5432/klintec"
     database_echo: bool = False

@@ -3,11 +3,20 @@
   "title": "QuoteInput",
   "description": "Contrato de entrada para el motor de cálculo determinista de Klintec",
   "type": "object",
-  "required": ["contrato", "zonas", "turnos", "opciones", "economicos"],
+  "required": [
+    "contrato",
+    "zonas",
+    "turnos",
+    "opciones",
+    "economicos",
+    "maquinaria",
+    "consumibles",
+    "gastos_varios"
+  ],
   "properties": {
     "contrato": {
       "type": "object",
-      "required": ["sector", "tipo", "cliente", "tipologia", "fecha_inicio"],
+      "required": ["sector", "tipo", "cliente", "tipologia", "plazo_meses", "fecha_inicio"],
       "properties": {
         "sector": { "type": "string", "enum": ["privado", "publico"] },
         "tipo": { "type": "string", "enum": ["recurrente", "unico"] },
@@ -152,6 +161,39 @@
         },
         "merma_pct": { "type": "number", "minimum": 0 },
         "iva_pct": { "type": "number", "minimum": 0 }
+      }
+    },
+    "maquinaria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["maquinaria_id", "horas_uso_mensual"],
+        "properties": {
+          "maquinaria_id": { "type": "string", "minLength": 1 },
+          "horas_uso_mensual": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "consumibles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["consumible_id", "cantidad_mensual"],
+        "properties": {
+          "consumible_id": { "type": "string", "minLength": 1 },
+          "cantidad_mensual": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "gastos_varios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["descripcion", "monto_mensual"],
+        "properties": {
+          "descripcion": { "type": "string", "minLength": 1 },
+          "monto_mensual": { "type": "number", "minimum": 0 }
+        }
       }
     }
   }

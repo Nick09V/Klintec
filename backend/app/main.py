@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.api.v1 import catalogs, quotes, klinbot
-from app.api.routers import governance
+from app.api.routers import governance, quotes as gold_quotes
 
 app = FastAPI(
     title=settings.app_name,
@@ -31,6 +31,7 @@ register_exception_handlers(app)
 app.include_router(catalogs.router, prefix=settings.api_v1_prefix)
 app.include_router(catalogs.parameters_router, prefix=settings.api_v1_prefix)
 app.include_router(quotes.router, prefix=settings.api_v1_prefix)
+app.include_router(gold_quotes.router, prefix=settings.api_v1_prefix)
 app.include_router(klinbot.router, prefix=settings.api_v1_prefix)
 app.include_router(governance.router, prefix=settings.api_v1_prefix)
 

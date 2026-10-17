@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .catalog import (
     InfrastructureType, ShiftType, DilutionConvention
@@ -17,6 +17,27 @@ class Project(BaseModel):
 
 class Periodo(BaseModel):
     dias_operacion_mes: int = Field(default=26, ge=1, le=31)
+
+
+class HorarioUsuario(BaseModel):
+    dias_laborables_mes: int = Field(default=22, ge=0, le=31)
+    horas_por_dia_laborable: float = Field(default=8, ge=0, le=24)
+    dias_fin_semana_mes: int = Field(default=0, ge=0, le=31)
+    horas_por_dia_fin_semana: float = Field(default=0, ge=0, le=24)
+    horas_extra_mes: float = Field(default=0, ge=0, le=52)
+
+    @model_validator(mode="after")
+    def _validar_capacidad(self) -> "HorarioUsuario":
+        dias = self.dias_laborables_mes + self.dias_fin_semana_mes
+        horas_regulares = (
+            self.dias_laborables_mes * self.horas_por_dia_laborable
+            + self.dias_fin_semana_mes * self.horas_por_dia_fin_semana
+        )
+        if dias > 31:
+            raise ValueError("Los días laborables y de fin de semana no pueden superar 31 al mes.")
+        if horas_regulares <= 0:
+            raise ValueError("El horario debe incluir horas regulares; las horas extra no pueden ser la única jornada.")
+        return self
 
 
 class Turno(BaseModel):
@@ -51,20 +72,36 @@ class ConsumableInput(BaseModel):
     cantidad_mensual: float = Field(ge=0)
 
 
+class MiscExpenseInput(BaseModel):
+    descripcion: str = Field(min_length=1, max_length=200)
+    monto_mensual: float = Field(ge=0)
+
+    @field_validator("descripcion")
+    @classmethod
+    def _descripcion_no_vacia(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("El detalle del gasto es obligatorio.")
+        return value
+
+
 class CommercialInput(BaseModel):
     gastos_administrativos_pct: float = Field(default=10.0, ge=0, le=25)
     imprevistos_riesgo_pct: float = Field(default=5.0, ge=0, le=15)
     margen_neto_pct: float = Field(default=15.0, ge=0, le=50)
+    descuento_pct: float = Field(default=0.0, ge=0, le=15)
 
 
 class QuoteCalculationRequest(BaseModel):
     proyecto: Project
     periodo: Periodo = Periodo()
+    horario_usuario: HorarioUsuario = HorarioUsuario()
     turno: Turno
     bonificacion_especialidad: str = "0.00"
     superficies: List[SurfaceInput] = Field(min_length=1)
     maquinaria: List[MachineryInput] = []
     consumibles: List[ConsumableInput] = []
+    gastos_varios: List[MiscExpenseInput] = []
     comercial: CommercialInput
     version_parametros: Optional[str] = None
 
@@ -82,6 +119,18 @@ class MoneyBreakdown(BaseModel):
     total: str
 
 
+class UserModScenario(BaseModel):
+    horas_laborables_mes_por_operario: float
+    horas_fin_semana_mes_por_operario: float
+    horas_extra_mes_por_operario: float
+    horas_disponibles_mes_por_operario: float
+    recargo_fin_semana_por_operario: str
+    recargo_horas_extra_por_operario: str
+    operarios_requeridos: int
+    costo_mensual_por_operario: MoneyBreakdown
+    total: str
+
+
 class ModBlock(BaseModel):
     horas_requeridas_dia: float
     horas_requeridas_mes: float
@@ -89,6 +138,7 @@ class ModBlock(BaseModel):
     costo_mensual_por_operario: MoneyBreakdown
     factor_reemplazo_ausentismo: float
     total: str
+    escenario_usuario: UserModScenario
 
 
 class CiqLine(BaseModel):
@@ -126,6 +176,17 @@ class CmaqBlock(BaseModel):
     total: str
 
 
+class MiscExpenseLine(BaseModel):
+    descripcion: str
+    monto_mensual: str
+    costo: str
+
+
+class MiscExpensesBlock(BaseModel):
+    lineas: List[MiscExpenseLine]
+    total: str
+
+
 class Consolidacion(BaseModel):
     costo_operativo_directo: str
     gastos_administrativos: str
@@ -133,7 +194,17 @@ class Consolidacion(BaseModel):
     margen_neto: str
     factor_total: float
     subtotal_oferta: str
+    descuento_pct: float
+    descuento_comercial: str
+    precio_final: str
     piso_inviolable_respetado: bool
+    costo_operativo_directo_usuario: str
+    gastos_administrativos_usuario: str
+    imprevistos_riesgo_usuario: str
+    margen_neto_usuario: str
+    subtotal_oferta_usuario: str
+    descuento_comercial_usuario: str
+    precio_final_usuario: str
 
 
 class Partida(BaseModel):
@@ -168,6 +239,7 @@ class QuoteCalculationResponse(BaseModel):
     mod: ModBlock
     ciq: CiqBlock
     cmaq: CmaqBlock
+    gastos_varios: MiscExpensesBlock
     consolidacion: Consolidacion
     partidas: List[Partida]
     supuestos: List[str]

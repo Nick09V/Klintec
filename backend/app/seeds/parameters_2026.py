@@ -8,7 +8,11 @@ PARAMETERS_2026 = {
     "laborales": {
         "sbu": "482.00",
         "horas_efectivas_por_turno": 7.5,
+        "horas_mes_jornada_completa": 173.33,
+        "divisor_hora_suplementaria": 240.0,
         "recargo_nocturno_pct": 25.0,
+        "recargo_hora_suplementaria_pct": 50.0,
+        "recargo_hora_fin_semana_pct": 100.0,
         "iess_patronal_pct": 12.15,
         "fondo_reserva_pct": 8.33,
         "decimo_tercero_pct": 8.33,
@@ -21,11 +25,13 @@ PARAMETERS_2026 = {
         "gastos_administrativos_pct": 10.0,
         "imprevistos_riesgo_pct": 5.0,
         "margen_neto_pct": 15.0,
+        "descuento_pct": 0.0,
         # Limites oficiales del contrato de API (escala 0-100)
         "limites": {
             "gastos_administrativos_pct": {"min": 0, "max": 25},
             "imprevistos_riesgo_pct": {"min": 0, "max": 15},
             "margen_neto_pct": {"min": 0, "max": 50},
+            "descuento_pct": {"min": 0, "max": 15},
         },
     },
 }

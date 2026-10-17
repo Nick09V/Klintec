@@ -60,7 +60,11 @@ class ConsumableCatalogItem(BaseModel):
 class LaborParameters(BaseModel):
     sbu: str = Field(description="Salario Básico Unificado 2026 en USD")
     horas_efectivas_por_turno: float = 7.5
+    horas_mes_jornada_completa: float = 173.33
+    divisor_hora_suplementaria: float = 240.0
     recargo_nocturno_pct: float = 25.0
+    recargo_hora_suplementaria_pct: float = 50.0
+    recargo_hora_fin_semana_pct: float = 100.0
     iess_patronal_pct: float = 12.15
     fondo_reserva_pct: float = 8.33
     decimo_tercero_pct: float = 8.33
@@ -82,6 +86,7 @@ class CommercialParameters(BaseModel):
     gastos_administrativos_pct: float = 10.0
     imprevistos_riesgo_pct: float = 5.0
     margen_neto_pct: float = 15.0
+    descuento_pct: float = 0.0
     limites: Dict[str, CommercialLimits] = {}
 
 

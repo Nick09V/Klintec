@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.api.v1 import catalogs, quotes, klinbot
+from app.api.routers import governance
 
 app = FastAPI(
     title=settings.app_name,
@@ -31,6 +32,7 @@ app.include_router(catalogs.router, prefix=settings.api_v1_prefix)
 app.include_router(catalogs.parameters_router, prefix=settings.api_v1_prefix)
 app.include_router(quotes.router, prefix=settings.api_v1_prefix)
 app.include_router(klinbot.router, prefix=settings.api_v1_prefix)
+app.include_router(governance.router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health", tags=["health"])

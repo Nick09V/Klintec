@@ -18,13 +18,27 @@ class AuditResponse(BaseModel):
 
 @router.post("/audit", response_model=AuditResponse)
 def audit_quote(req: AuditRequest):
-    # MVP determinista: no LLM aún para evitar costos; devuelve auditoría base
+    # Auditoría determinista MVP basada en el snapshot enviado por el supervisor.
+    calculation = req.quote_snapshot.get("calculo", req.quote_snapshot)
+    consolidation = calculation.get("consolidacion", {}) if isinstance(calculation, dict) else {}
     recomendaciones = [
         "Verificar rendimientos por tipología antes de aprobar",
         "Confirmar factor de reemplazo/ausentismo aplicado (1.18x)",
     ]
-    advertencias = []
-    riesgo_general = "medio"
+    advertencias = [
+        f"{item.get('codigo', 'ADVERTENCIA')}: {item.get('mensaje', 'Revisar el cálculo')}"
+        for item in calculation.get("advertencias", [])
+        if isinstance(item, dict)
+    ] if isinstance(calculation, dict) else []
+    riesgo_general = "bajo"
+    if consolidation and not consolidation.get("piso_inviolable_respetado", True):
+        advertencias.append("El precio final no respeta el piso del costo operativo directo.")
+        recomendaciones.insert(0, "Corregir precio o porcentajes comerciales antes de aprobar")
+        riesgo_general = "alto"
+    elif advertencias:
+        riesgo_general = "medio"
+    if consolidation and float(consolidation.get("descuento_pct", 0) or 0) > 0:
+        recomendaciones.append("Confirmar que el descuento aplicado fue autorizado")
     return AuditResponse(
         recomendaciones=recomendaciones,
         advertencias=advertencias,

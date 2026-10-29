@@ -1,25 +1,82 @@
 {
-  "horas": { "trabajo": 847.8, "pagadas": 904.3, "presencia": null },
-  "personal": { "fte": 5.63, "operarios": 6 },
-  "mod": 4086.78,
-  "ciq": 780.44,
-  "cmaq": 156.23,
-  "costo_directo": 5023.44,
-  "equilibrio": 5750.84,
-  "precio": 6535.04,
-  "iva": 980.26,
-  "total": 7515.3,
-  "semaforo": "verde",
-  "lineas_apu": [
-    {
-      "rubro": "MOD",
-      "detalle": "6 operarios",
-      "valor": 4086.78,
-      "fuente": "Normativa 2026"
-    }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QuoteResult",
+  "description": "Contrato de salida del motor de cálculo determinista de Klintec",
+  "type": "object",
+  "required": [
+    "horas",
+    "personal",
+    "mod",
+    "ciq",
+    "cmaq",
+    "costo_directo",
+    "equilibrio",
+    "precio",
+    "iva",
+    "total",
+    "semaforo",
+    "lineas_apu",
+    "alertas",
+    "params_version"
   ],
-  "alertas": [
-    { "codigo": "HORAS_PRESENCIA_BAJAS", "nivel": "aviso", "mensaje": "…" }
-  ],
-  "params_version": "v1"
+  "properties": {
+    "horas": {
+      "type": "object",
+      "required": ["trabajo", "pagadas", "presencia"],
+      "properties": {
+        "trabajo": { "type": "number", "minimum": 0 },
+        "pagadas": { "type": "number", "minimum": 0 },
+        "presencia": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "personal": {
+      "type": "object",
+      "required": ["fte", "operarios"],
+      "properties": {
+        "fte": { "type": "number", "minimum": 0 },
+        "operarios": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "mod": { "type": "number", "minimum": 0 },
+    "ciq": { "type": "number", "minimum": 0 },
+    "cmaq": { "type": "number", "minimum": 0 },
+    "costo_directo": { "type": "number", "minimum": 0 },
+    "equilibrio": { "type": "number", "minimum": 0 },
+    "precio": { "type": "number", "minimum": 0 },
+    "iva": { "type": "number", "minimum": 0 },
+    "total": { "type": "number", "minimum": 0 },
+    "semaforo": {
+      "type": "string",
+      "enum": ["verde", "amarillo", "rojo"]
+    },
+    "lineas_apu": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rubro", "detalle", "valor", "fuente"],
+        "properties": {
+          "rubro": {
+            "type": "string",
+            "enum": ["MOD", "CIQ", "CMAQ", "INDIRECTOS", "UTILIDAD"]
+          },
+          "detalle": { "type": "string" },
+          "valor": { "type": "number" },
+          "fuente": { "type": "string" }
+        }
+      }
+    },
+    "alertas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["codigo", "nivel", "mensaje"],
+        "properties": {
+          "codigo": { "type": "string" },
+          "nivel": { "type": "string", "enum": ["info", "aviso", "critico"] },
+          "mensaje": { "type": "string" }
+        }
+      }
+    },
+    "params_version": { "type": "string" }
+  }
 }

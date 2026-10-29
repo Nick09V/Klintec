@@ -350,3 +350,44 @@ Los mentores y expositores del evento no solo dan consejos: **validan la credibi
 
 4. **Minuto 3:15 – 4:00 | Modelo de Negocio B2B SaaS y Próximo Paso hacia la Aceleración:**
    - *"Klintec opera bajo un modelo SaaS B2B por suscripción escalonada ($49/mes para PYMEs y $149/mes para empresas licitadoras multi-contrato con KlinBot ilimitado). Con el capital semilla y las 12 semanas del programa de aceleración en enero, desplegaremos pilotos reales con 10 empresas de FEDELIMP para estandarizar el costeo de limpieza profesional en el Ecuador. Muchas gracias."*
+
+---
+
+## XI. Hallazgos Financieros de Mentoría y Módulo de Contingencias CleanTech (Mentoría Hospitalaria)
+
+### 1. Las Dos Dimensiones Financieras del Negocio de Limpieza
+La mentoría con la experta de CleanTech valida que el negocio de limpieza profesional e higiene institucional (particularmente hospitalaria) se estructura en dos componentes financieros críticos que el cotizador debe gobernar para proteger el margen neto del proveedor:
+
+| Componente | Cuándo se Fija | Base de Cálculo y Facturación | Riesgo si se Omite |
+| :--- | :--- | :--- | :--- |
+| **Servicio Base Predecible** | Día 0 de cada mes | Metros cuadrados libres y congestionados, rendimiento horario ISSA LATAM, dosificación química y amortización de maquinaria. | Pérdida operativa estructural por subcotización de horas de mano de obra. |
+| **Servicios Especiales Recurrentes** | Día 0 (con promedios) | Rotación y estancia de camas estándar (1–1,25 días) vs. camas UCI/críticas (3–5 días), desinfección de altas y ciclos de quirófanos (2,5 h uso + 45 min desinfección). | Facturación plana que subsidia el mayor costo de bioseguridad en áreas críticas. |
+| **Emergencias y Contingencias** | Al cierre de cada evento | Refuerzo de personal, EPP estéril y sustitución forzada de amonio cuaternario por hipoclorito de sodio (2x costo). Facturado en el mes corriente sin diferir. | Rotura inmediata del margen operativo que se come la utilidad del contrato. |
+
+### 2. Determinantes del Coste: Tiempo de Trabajo y Áreas Libres vs. Congestionadas
+- **Mano de obra por hora como unidad central:** El cotizador convierte metros cuadrados en horas-persona requeridas según el tipo de área:
+  * **Área Libre:** Rendimiento base de referencia de **~100 m² por hora por operario** (pasillos despejados, halls).
+  * **Área Congestionada:** Rendimiento disminuido por obstáculos físicos (ej. pasillos con 10% de congestión por papeleras/sillas; habitaciones clínicas con hasta 40% de congestión por mobiliario, camas y bombas de infusión).
+- **Regla Estricta de Maquinaria Mecanizada:**
+  * El uso de maquinaria mecanizada (fregadoras automáticas) reduce el tiempo de trabajo en torno al **20%**.
+  * **Regla Inviolable de Bioseguridad:** Las clínicas y hospitales **PROHÍBEN terminantemente máquinas dentro de las habitaciones de pacientes**. La maquinaria solo está autorizada en pasillos, halls y naves abiertas. Dentro de habitaciones el servicio es 100% manual con mopa plana y microfibra codificada.
+
+### 3. Parámetros Hospitalarios de Servicios Especiales (Cotizados por Promedios)
+- **Desinfección Terminal tras el Alta:** Proceso especializado sobre colchones, estructura de camas y patas. No incluye cambio de lencería/sábanas (responsabilidad de enfermería).
+- **Camas Normales / Hospitalización:** Estancia promedio estimada de **1 a 1,25 días por paciente**.
+- **Camas UCI / Críticas:** Estancia promedio de **3 a 5 días por paciente** con tarifa diferenciada por nivel de riesgo microbiológico y protocolo reforzado.
+- **Quirófanos:** Cada cirugía tiene una duración promedio de **2,5 horas**, seguida por una desinfección intermedia de **45 minutos**. Como estándar de dimensionamiento, un hospital programa entre **2 y 3 cirugías diarias por quirófano**.
+
+### 4. Gestión de Contingencias y Ventaja Competitiva de Bodega (Grupo Clarsa)
+- **Activación de Crisis:** Declarada habitualmente por el médico hospitalario o infectólogo ante brotes bacterianos o colapsos de emergencia (ej. accidente vial masivo en Ambato).
+- **Impacto en Costos:** Exige duplicar la dotación de insumos químicos al cambiar de Amonio Cuaternario 5.ª Gen a Hipoclorito de Sodio (costo unitario ~2x), sumar ropa estéril descartable e incorporar operarios de refuerzo.
+- **Regla de Facturación:** Los sobrecostos no se absorben ni se difieren a plazos futuros; se liquidan al cierre del día y se reflejan en la factura mensual como **Reajuste por Contingencia**.
+- **Integración Vertical (Ventaja Grupo Clarsa):** Contar con bodega e inventario propio de químicos concentrados permite sustituir productos al instante durante una crisis, blindando los plazos de respuesta y protegiendo el margen frente a sobreprecios de intermediarios.
+
+### 5. Evolución Tecnológica: Adopción del SDK Oficial Google GenAI (`google-genai`)
+Klintec v2.0 estandariza su capa de Inteligencia Artificial sobre el SDK oficial `google-genai` con los modelos **Gemini 2.5 Flash** y **Gemini 3.8 Flash**:
+1. **KlinBot Copiloto:** Panel lateral drawer interactivo con chat contextual para guiar al cotizador en tiempo real sobre normativa MDT-2025-195 (SBU $482), IESS 12,15% y diluciones ARCSA.
+2. **KlinBot Auditor:** Dictamen estructurado JSON (`response_schema`) en la bandeja de supervisión que verifica el escudo anti-dumping FEDELIMP y la prohibición de máquinas en habitaciones.
+3. **KlinVision:** Ingesta visual multimodal para clasificar superficies clínicas y sugerir insumos químicos ARCSA y equipos permitidos.
+4. **TDR Parser:** Ingesta en 1 clic de pliegos SERCOP en PDF de 50 páginas para precargar entidades, metrajes, frecuencias y turnos 24/7.
+5. **Resiliencia Total (Dual Provider):** Si no hay API key o la conexión falla en el Centro de Exposiciones Quito, el sistema conmuta automáticamente al **Fallback Determinista Offline (Mock)** sin interrumpir la demo.
